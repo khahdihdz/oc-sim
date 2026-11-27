@@ -862,7 +862,8 @@
           '<div class="row"><button class="step" data-k="' + c.key + '" data-d="-1">−</button>' +
           '<div class="v" id="v-' + c.key + '">--</div>' +
           '<button class="step" data-k="' + c.key + '" data-d="1">+</button></div>' +
-          '<div style="grid-column:1 / -1"><input type="range" id="r-' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + (typeof c.step === 'function' ? 0.005 : c.step) + '"></div>';
+          '<div style="grid-column:1 / -1"><input type="range" id="r-' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + (typeof c.step === 'function' ? 0.005 : c.step) + '"></div>' +
+          ((c.key === 'vcore' || c.key === 'bclk') ? '<div class="desc" id="lim-' + c.key + '" style="grid-column:1 / -1;color:var(--amber)"></div>' : '');
         $(c.box).appendChild(div);
       });
       document.querySelectorAll('.ctl .step').forEach(b => b.addEventListener('click', () => {
@@ -879,14 +880,24 @@
         document.querySelectorAll('#vstepSeg button').forEach(x => x.classList.toggle('on', x === b)); sndClick();
       }));
     }
+    let capToastAt = 0;
+    function notifyCap(c, board){
+      const now = Date.now();
+      if (now - capToastAt < 3000) return;
+      capToastAt = now;
+      if (c.key === 'vcore') toast('⚠ ' + board.name + ' chỉ cấp tối đa ' + f2(board.maxV) + 'V — Vcore không tăng thêm được. Nâng cấp mainboard VRM mạnh hơn trong Cửa Hàng để mở khóa volt cao hơn.', 'gold');
+      else toast('⚠ ' + board.name + ' giới hạn BCLK tối đa ' + board.maxBclk + ' MHz — nâng cấp mainboard để đẩy cao hơn.', 'gold');
+    }
     function setOC(c, val, fromRange){
       const board = eqItem('board');
       let v = clamp(val, c.min, c.max);
-      if (c.key === 'vcore') v = Math.min(v, board.maxV);
-      if (c.key === 'bclk') v = Math.min(v, board.maxBclk);
+      let capped = false;
+      if (c.key === 'vcore' && v > board.maxV){ v = board.maxV; capped = true; }
+      if (c.key === 'bclk' && v > board.maxBclk){ v = board.maxBclk; capped = true; }
       if (c.round) v = Math.round(v * 1000) / 1000;
       if (c.key === 'mult' || c.key === 'bclk' || c.key === 'ramCL') v = Math.round(v);
       S.oc[c.key] = v;
+      if (capped) notifyCap(c, board);
       if (c.key === 'mult' || c.key === 'bclk') S.flags.raisedClock = true;
       if (c.key === 'vcore' && v > eqItem('cpu').baseV) S.flags.raisedVolt = true;
       refreshOC();
@@ -1565,6 +1576,14 @@
         if (vEl) vEl.textContent = c.fmt(S.oc[c.key]);
         if (rEl && document.activeElement !== rEl) rEl.value = S.oc[c.key];
       });
+      /* Trần thật theo mainboard đang lắp: thanh trượt dừng đúng giới hạn và ghi rõ tại chỗ,
+         để người chơi không kéo/bấm mãi mà giá trị đứng yên không hiểu vì sao */
+      const rVcore = $('r-vcore'); if (rVcore) rVcore.max = Math.min(1.60, board.maxV);
+      const limV = $('lim-vcore');
+      if (limV) limV.textContent = 'Giới hạn của ' + board.name + ': Vcore tối đa ' + f2(board.maxV) + 'V' + (board.maxV < 1.60 ? ' — chạm trần này là không tăng thêm được nữa; nâng cấp mainboard (VRM mạnh) trong Cửa Hàng để mở tới 1.60V.' : ' — đây là bo mạch thi đấu, mở hết thang Vcore.');
+      const rBclk = $('r-bclk'); if (rBclk) rBclk.max = Math.min(115, board.maxBclk);
+      const limB = $('lim-bclk');
+      if (limB) limB.textContent = 'Giới hạn của ' + board.name + ': BCLK tối đa ' + board.maxBclk + ' MHz.';
       document.querySelectorAll('#llcSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.llc) === S.oc.llc));
       renderOCNumbers(compute(1)); renderAdvisor();
     }
