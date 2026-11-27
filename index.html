@@ -162,6 +162,18 @@
       #modalWrap{ background:rgba(0,0,0,.7); }
       #modalWrap .box{ background:var(--panel); border:1px solid var(--line); border-radius:10px; max-width:440px; width:100%; padding:18px; }
       #toasts{ position:fixed; bottom:14px; left:50%; transform:translateX(-50%); z-index:120; display:flex; flex-direction:column; gap:6px; width:min(92vw,440px); }
+      body.has-applybar #toasts{ bottom:104px; }
+      body.has-applybar main{ padding-bottom:130px; }
+      /* ---------- Thanh Áp dụng cố định dưới đáy màn hình ---------- */
+      #applyBar{ position:fixed; left:50%; bottom:calc(10px + env(safe-area-inset-bottom)); transform:translate(-50%,180%); visibility:hidden; transition:transform .28s ease, visibility .28s; z-index:95; width:min(980px,calc(100% - 16px)); display:flex; gap:10px 16px; align-items:center; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--amber); border-radius:10px; padding:10px 14px; box-shadow:0 10px 34px rgba(0,0,0,.6); }
+      #applyBar.on{ transform:translate(-50%,0); visibility:visible; }
+      #applyBar .ab-info{ flex:1 1 260px; min-width:0; }
+      #applyBar .ab-title{ font-weight:700; color:#fff; font-size:14.5px; }
+      #applyBar .ab-title b{ color:var(--amber); }
+      #applyBar .ab-diff{ font-family:var(--mono); font-size:12.5px; color:var(--cyan); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      #applyBar .ab-btns{ display:flex; gap:8px; margin-left:auto; }
+      #applyBar #btnApplyChanges{ font-size:15px; padding:9px 22px; }
+      @media (max-width:560px){ #applyBar .ab-btns{ width:100%; } #applyBar .ab-btns button{ flex:1; } }
       .toast{ background:#131a29; border:1px solid var(--cyan); color:#eafcff; border-radius:8px; padding:10px 14px; font-size:14px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
       .toast.err{ border-color:var(--red); }
       .toast.gold{ border-color:var(--amber); }
@@ -599,6 +611,18 @@
       </div>
     </div>
 
+    <!-- Thanh Áp dụng: chỉ hiện khi có thông số đã chỉnh mà chưa áp dụng -->
+    <div id="applyBar" role="region" aria-label="Áp dụng thay đổi thông số">
+      <div class="ab-info">
+        <div class="ab-title">⚙ Bạn đã thay đổi <b id="applyCount">0</b> thông số — chưa áp dụng</div>
+        <div class="ab-diff" id="applyDiff"></div>
+      </div>
+      <div class="ab-btns">
+        <button id="btnUndoChanges">↩ Hoàn tác</button>
+        <button id="btnApplyChanges" class="primary">✓ Áp dụng</button>
+      </div>
+    </div>
+
     <div id="toasts"></div>
     <script>
     'use strict';
@@ -871,6 +895,7 @@
         if (!data || !data.inventory || !data.oc) throw new Error('bad');
         S = data; uidSeq = Math.max(0, ...S.inventory.map(i => i.uid)) + 1;
         sim.cpuTemp = 34; sim.gpuTemp = 33; sim.activity = 'idle'; sim.stress = null; sim.bench = null;
+        appliedOC = snapshotOC();
         refreshAll(); toast('Đã tải lại bản lưu.'); return true;
       }catch(e){ toast('Bản lưu bị lỗi, không tải được.', 'err'); return false; }
     }
@@ -878,6 +903,7 @@
     $('btnLoad').addEventListener('click', () => { loadGame(); sndClick(); });
     $('btnNew').addEventListener('click', () => askConfirm('Chơi mới?', 'Toàn bộ tiến trình hiện tại (tiền, linh kiện, cấp độ) sẽ bị xóa và bắt đầu lại từ đầu.', () => {
       S = newGame(); localStorage.removeItem(SAVE_KEY); sim.cpuTemp = 34; sim.gpuTemp = 33; sim.activity = 'idle';
+      appliedOC = snapshotOC();
       refreshAll(); toast('Đã bắt đầu game mới. Chúc ép xung vui vẻ!');
     }));
     $('btnSound').addEventListener('click', () => { S.sound = !S.sound; $('btnSound').textContent = S.sound ? '🔊 Âm thanh' : '🔇 Đã tắt tiếng'; if (S.sound) sndClick(); });
@@ -903,6 +929,7 @@
        ĐIỀU KHIỂN ÉP XUNG (stepper dùng chung)
        ============================================================ */
     let vcoreStep = 0.01;
+    let appliedOC = null; // bản thông số đã ÁP DỤNG gần nhất — S.oc khác bản này nghĩa là đang có thay đổi chờ áp dụng
     const VSTEPS = [0.001, 0.005, 0.01, 0.025];
     const CONTROLS = [
       { box:'ctlCpu', key:'mult',  name:'CPU Multiplier (Hệ số nhân)', fmt:v => '×' + v, step:1, min:8, max:70,
@@ -932,6 +959,54 @@
       { box:'ctlRam', key:'ramVolt', name:'RAM Voltage', fmt:v => f3(v) + ' V', step:0.01, min:1.10, max:1.60, round:3,
         desc:'An toàn quanh 1.35V; DDR5 chịu được tới ~1.45V.' },
     ];
+    /* ---------- Thanh Áp dụng cố định dưới đáy màn hình ----------
+       Chỉnh tay bất kỳ thông số nào (stepper, thanh trượt, LLC, bước nhảy Vcore)
+       đều làm S.oc lệch khỏi appliedOC -> thanh hiện lên. Bấm Áp dụng mới chốt
+       cấu hình + lưu game; Hoàn tác quay về bản đã áp dụng. Các thao tác áp dụng
+       1 chạm có sẵn (gợi ý, preset, nút sửa sau crash, lắp linh kiện) thì gọi
+       markApplied() để chốt ngay, không bắt bấm thêm lần nữa. */
+    const OC_LABELS = { mult:'Multiplier', bclk:'BCLK', vcore:'Vcore', pl2:'PL2', pl1:'PL1', llc:'LLC', vstep:'Bước nhảy Vcore', gpuCoreOff:'GPU Core Offset', gpuMemOff:'GPU Mem Offset', gpuPL:'GPU Power Limit', gpuVolt:'GPU Voltage', fan:'Quạt GPU', ramFreq:'RAM Frequency', ramCL:'RAM Timing CL', ramVolt:'RAM Voltage' };
+    function snapshotOC(){ return JSON.parse(JSON.stringify(S.oc)); }
+    function ocFmtVal(key, v){
+      if (key === 'llc') return 'Mức ' + v;
+      if (key === 'vstep') return f3(v) + ' V';
+      const c = CONTROLS.find(x => x.key === key);
+      return c ? c.fmt(v) : String(v);
+    }
+    function ocDiff(){
+      if (!appliedOC) return [];
+      return Object.keys(OC_LABELS)
+        .filter(k => Math.abs((Number(S.oc[k]) || 0) - (Number(appliedOC[k]) || 0)) > 1e-9)
+        .map(k => ({ key:k, from:appliedOC[k], to:S.oc[k] }));
+    }
+    function updateApplyBar(){
+      const bar = $('applyBar'); if (!bar) return;
+      const d = ocDiff();
+      const on = d.length > 0;
+      bar.classList.toggle('on', on);
+      document.body.classList.toggle('has-applybar', on);
+      if (on){
+        $('applyCount').textContent = d.length;
+        const parts = d.slice(0, 3).map(x => OC_LABELS[x.key] + ': ' + ocFmtVal(x.key, x.from) + ' → ' + ocFmtVal(x.key, x.to));
+        $('applyDiff').textContent = parts.join(' · ') + (d.length > 3 ? ' · và ' + (d.length - 3) + ' thay đổi nữa' : '');
+      }
+    }
+    function markApplied(){ appliedOC = snapshotOC(); updateApplyBar(); }
+    $('btnApplyChanges').addEventListener('click', () => {
+      const n = ocDiff().length; if (!n) return;
+      markApplied(); saveGame(true);
+      toast('✔ Đã áp dụng ' + n + ' thay đổi thông số — cấu hình mới đã có hiệu lực và được lưu lại.');
+      sndOk();
+    });
+    $('btnUndoChanges').addEventListener('click', () => {
+      if (!appliedOC) return;
+      S.oc = JSON.parse(JSON.stringify(appliedOC));
+      vcoreStep = Number(S.oc.vstep) || 0.01;
+      refreshAll();
+      toast('Đã hoàn tác — quay về thông số đã áp dụng trước đó.');
+      sndClick();
+    });
+
     function buildControls(){
       ['ctlCpu','ctlGpu','ctlRam'].forEach(id => $(id).innerHTML = '');
       CONTROLS.forEach(c => {
@@ -1181,7 +1256,7 @@
       });
     }
     $('btnAdvRefresh').addEventListener('click', () => { renderAdvisor(); toast('Đã phân tích lại theo thông số hiện tại.'); sndClick(); });
-    $('btnAdvApply').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); renderAdvisor(); toast('Đã áp dụng gợi ý.'); sndOk(); } });
+    $('btnAdvApply').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); markApplied(); renderAdvisor(); toast('Đã áp dụng gợi ý.'); sndOk(); } });
 
     /* Gợi ý rút gọn ngay ở Tổng Quan: cảnh báo quan trọng nhất + bước tiếp theo */
     function renderDashHint(c){
@@ -1195,7 +1270,7 @@
       b.textContent = currentAdvice && currentAdvice.apply ? 'Áp dụng gợi ý ngay' : 'Không có thao tác tự động';
     }
     $('btnDashHintGo').addEventListener('click', () => { gotoTab('oc'); sndClick(); });
-    $('btnDashHintApply').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); renderAdvisor(); toast('Đã áp dụng gợi ý.'); sndOk(); } });
+    $('btnDashHintApply').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); markApplied(); renderAdvisor(); toast('Đã áp dụng gợi ý.'); sndOk(); } });
 
     /* Kiểm tra trước khi stress test: chấm từng mục và dự đoán qua / crash */
     function renderPreflight(c){
@@ -1224,7 +1299,7 @@
       fb.style.display = showFix ? '' : 'none';
       if (showFix) fb.textContent = 'Áp dụng gợi ý sửa: ' + 'xử lý vấn đề ưu tiên nhất';
     }
-    $('btnPreflightFix').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); renderAdvisor(); toast('Đã áp dụng gợi ý sửa. Xem lại bảng kiểm tra rồi test lại.'); sndOk(); } });
+    $('btnPreflightFix').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); markApplied(); renderAdvisor(); toast('Đã áp dụng gợi ý sửa. Xem lại bảng kiểm tra rồi test lại.'); sndOk(); } });
 
     /* Presets */
     document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
@@ -1247,7 +1322,7 @@
         S.oc.pl1 = Math.max(S.oc.pl1, 300); S.oc.pl2 = Math.max(S.oc.pl2, 350);
         toast('Preset Cực Hạn: xung ' + (S.oc.mult * 100) + ' MHz, LLC 5, PL nới tối đa. Theo dõi nhiệt độ sát sao!', 'gold');
       }
-      S.flags.raisedClock = true; refreshAll(); sndOk();
+      S.flags.raisedClock = true; refreshAll(); markApplied(); sndOk();
     }));
 
     /* ============================================================
@@ -1291,6 +1366,8 @@
     function anyBroken(){ return ['cpu','gpu','ram'].some(cat => { const i = eqInst(cat); return i && i.broken; }); }
     $('btnStressStart').addEventListener('click', () => {
       if (sim.stress) return;
+      const pendS = ocDiff().length;
+      if (pendS){ toast('Bạn có ' + pendS + ' thông số đã chỉnh nhưng chưa áp dụng — bấm nút "Áp dụng" ở thanh cố định dưới đáy màn hình trước khi stress test.', 'err'); sndErr(); return; }
       if (anyBroken()){ toast('Có linh kiện đã hỏng — sửa trong Kho trước khi stress test.', 'err'); return; }
       sim.activity = 'stress';
       sim.stress = { elapsed: 0, dur: stressDur, errAcc: 0 };
@@ -1361,7 +1438,7 @@
       sndErr(); checkAch(); renderAdvisor();
     }
     $('btnBsodClose').addEventListener('click', () => { $('bsod').classList.remove('on'); sim.activity = 'idle'; $('sStatus').textContent = 'Đã crash'; $('sStatus').style.color = 'var(--red)'; });
-    $('btnBsodFix').addEventListener('click', () => { if (window._crashFix) window._crashFix(); $('bsod').classList.remove('on'); sim.activity = 'idle'; refreshAll(); toast('Đã áp dụng cách sửa. Hãy stress test lại để kiểm chứng.'); sndOk(); });
+    $('btnBsodFix').addEventListener('click', () => { if (window._crashFix) window._crashFix(); $('bsod').classList.remove('on'); sim.activity = 'idle'; refreshAll(); markApplied(); toast('Đã áp dụng cách sửa. Hãy stress test lại để kiểm chứng.'); sndOk(); });
 
     /* Vẽ biểu đồ */
     function drawChart(){
@@ -1392,6 +1469,8 @@
        ============================================================ */
     $('btnBench').addEventListener('click', () => {
       if (sim.bench || sim.stress) return;
+      const pendB = ocDiff().length;
+      if (pendB){ toast('Bạn có ' + pendB + ' thông số đã chỉnh nhưng chưa áp dụng — bấm nút "Áp dụng" ở thanh cố định dưới đáy màn hình trước khi benchmark.', 'err'); sndErr(); return; }
       if (anyBroken()){ toast('Có linh kiện đã hỏng — sửa trong Kho trước khi benchmark.', 'err'); return; }
       sim.activity = 'bench'; sim.bench = { elapsed: 0, dur: 8 };
       $('btnBench').disabled = true; $('benchResult').style.display = 'none';
@@ -1624,7 +1703,7 @@
       if (inst.cat === 'cpu'){ const ram = eqItem('ram'); S.oc = defaultOC(it, ram); toast('Đã lắp ' + it.name + ' — cài đặt ép xung đã đặt lại về mặc định của CPU mới.'); }
       else if (inst.cat === 'ram'){ S.oc.ramFreq = it.freq; S.oc.ramCL = it.cl; S.oc.ramVolt = it.baseV; toast('Đã lắp ' + it.name + ' — thông số RAM đặt lại mặc định.'); }
       else toast('Đã lắp ' + it.name + '.');
-      sndOk(); saveGame(true); refreshAll();
+      markApplied(); sndOk(); saveGame(true); refreshAll();
     }
 
     /* ============================================================
@@ -1769,7 +1848,7 @@
       if (vsNow) vsNow.textContent = 'Bước nhảy đang dùng: mỗi lần bấm + / − đổi Vcore ±' + f3(vcoreStep) + 'V — chỉnh ở mục "Bước nhảy Vcore" ngay dưới mục LLC.';
       const vvEl = $('vstepVal'); if (vvEl) vvEl.textContent = f3(vcoreStep) + ' V';
       const rvEl = $('r-vstep'); if (rvEl && document.activeElement !== rvEl) rvEl.value = VSTEPS.indexOf(vcoreStep);
-      renderOCNumbers(compute(1)); renderAdvisor();
+      renderOCNumbers(compute(1)); renderAdvisor(); updateApplyBar();
     }
     function renderOCNumbers(c){
       if (!$('tab-oc').classList.contains('on') && !$('tab-stress').classList.contains('on')) { /* vẫn cập nhật nếu đang ở OC */ }
@@ -1799,6 +1878,7 @@
       let loaded = false;
       try{ const raw = localStorage.getItem(SAVE_KEY); if (raw){ const d = JSON.parse(raw); if (d && d.inventory && d.oc){ S = d; uidSeq = Math.max(0, ...S.inventory.map(i => i.uid)) + 1; loaded = true; } } }catch(e){}
       if (S.oc && [0.001, 0.005, 0.01, 0.025].includes(Number(S.oc.vstep))) vcoreStep = Number(S.oc.vstep);
+      appliedOC = snapshotOC();
       refreshAll(); drawChart();
       if (loaded) toast('Đã tự động tải bản lưu trước đó. Bấm "Chơi mới" nếu muốn bắt đầu lại.');
       else toast('Chào mừng đến với xưởng ép xung! Bắt đầu: vào tab Ép Xung, tăng Multiplier +1 rồi qua Stress Test kiểm tra.');
