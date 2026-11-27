@@ -152,6 +152,8 @@
       .tag{ display:inline-block; font-size:11px; padding:1px 7px; border-radius:9px; border:1px solid var(--line); color:var(--mut); margin-right:4px; }
       .tag.eq{ color:#0b0f16; background:var(--green); border-color:var(--green); font-weight:700; }
       .tag.own{ color:var(--cyan); border-color:#1d4b63; }
+      .tag.no{ color:#ff9d9d; border-color:#7c2d2d; background:#2a1010; font-weight:700; }
+      .compat-note{ font-size:12.5px; color:#ff9d9d; line-height:1.5; margin:2px 0 8px; }
       .durbar{ height:7px; background:#0a0e16; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
       .durbar i{ display:block; height:100%; background:var(--green); }
       /* ---------- Kho: nhóm thu gọn (bấm để thả xuống) + bán / trao đổi ---------- */
@@ -749,13 +751,13 @@
     /* ---------------- Danh mục linh kiện ---------------- */
     const CATALOG = {
       cpu: [
-        { id:'i3-10100f', name:'Intel Core i3-10100F', price:1900000, lvl:1, baseFreq:3600, baseV:1.08, tdp:65,  baseScore:2600, note:'CPU khởi đầu, 4 nhân 8 luồng.' },
-        { id:'r5-5600',   name:'AMD Ryzen 5 5600',     price:3400000, lvl:2, baseFreq:3700, baseV:1.12, tdp:65,  baseScore:3400, note:'6 nhân, hiệu năng/giá rất tốt.' },
-        { id:'i5-12600k', name:'Intel Core i5-12600K', price:6500000, lvl:3, baseFreq:3700, baseV:1.15, tdp:125, baseScore:4600, note:'Hậu tố K — sinh ra để ép xung.' },
-        { id:'r7-7700x',  name:'AMD Ryzen 7 7700X',    price:8900000, lvl:4, baseFreq:4500, baseV:1.18, tdp:105, baseScore:5600, note:'Zen 4, xung gốc đã rất cao.' },
-        { id:'i7-13700k', name:'Intel Core i7-13700K', price:10500000,lvl:5, baseFreq:4200, baseV:1.20, tdp:125, baseScore:6600, note:'16 nhân, ăn điện mạnh khi ép.' },
-        { id:'r9-7950x',  name:'AMD Ryzen 9 7950X',    price:13900000,lvl:6, baseFreq:4500, baseV:1.20, tdp:170, baseScore:7800, note:'16 nhân Zen 4, TDP 170W.' },
-        { id:'i9-14900k', name:'Intel Core i9-14900K', price:14500000,lvl:7, baseFreq:4400, baseV:1.22, tdp:125, baseScore:8600, note:'Đầu bảng cho dân ép xung.' },
+        { id:'i3-10100f', name:'Intel Core i3-10100F', price:1900000, lvl:1, socket:'LGA1200', baseFreq:3600, baseV:1.08, tdp:65,  baseScore:2600, note:'CPU khởi đầu, 4 nhân 8 luồng.' },
+        { id:'r5-5600',   name:'AMD Ryzen 5 5600',     price:3400000, lvl:2, socket:'AM4',     baseFreq:3700, baseV:1.12, tdp:65,  baseScore:3400, note:'6 nhân, hiệu năng/giá rất tốt.' },
+        { id:'i5-12600k', name:'Intel Core i5-12600K', price:6500000, lvl:3, socket:'LGA1700', baseFreq:3700, baseV:1.15, tdp:125, baseScore:4600, note:'Hậu tố K — sinh ra để ép xung.' },
+        { id:'r7-7700x',  name:'AMD Ryzen 7 7700X',    price:8900000, lvl:4, socket:'AM5',     baseFreq:4500, baseV:1.18, tdp:105, baseScore:5600, note:'Zen 4, xung gốc đã rất cao.' },
+        { id:'i7-13700k', name:'Intel Core i7-13700K', price:10500000,lvl:5, socket:'LGA1700', baseFreq:4200, baseV:1.20, tdp:125, baseScore:6600, note:'16 nhân, ăn điện mạnh khi ép.' },
+        { id:'r9-7950x',  name:'AMD Ryzen 9 7950X',    price:13900000,lvl:6, socket:'AM5',     baseFreq:4500, baseV:1.20, tdp:170, baseScore:7800, note:'16 nhân Zen 4, TDP 170W.' },
+        { id:'i9-14900k', name:'Intel Core i9-14900K', price:14500000,lvl:7, socket:'LGA1700', baseFreq:4400, baseV:1.22, tdp:125, baseScore:8600, note:'Đầu bảng cho dân ép xung.' },
       ],
       gpu: [
         { id:'gt1030',  name:'NVIDIA GT 1030',        price:1500000, lvl:1, core:1227, mem:6000,  tdp:30,  baseV:1.00, baseScore:700,  note:'GPU khởi đầu, yếu nhưng mát.' },
@@ -772,11 +774,12 @@
         { id:'d5-7200', name:'DDR5 32GB 7200MHz CL34', price:5500000, lvl:6, freq:7200, cl:34, baseV:1.40, ddr5:true,  note:'Kit tốc độ cao cho benchmark.' },
       ],
       board: [
-        { id:'h510m', name:'Mainboard H510M',   price:1400000, lvl:1, maxV:1.30, droop:1.25, maxBclk:103, note:'VRM yếu, giới hạn Vcore 1.30V, Vdroop lớn.' },
-        { id:'b660m', name:'Mainboard B660M',   price:2600000, lvl:2, maxV:1.40, droop:1.00, maxBclk:105, note:'VRM khá, Vdroop trung bình.' },
-        { id:'z690',  name:'Mainboard Z690',    price:5200000, lvl:4, maxV:1.50, droop:0.85, maxBclk:110, note:'Dòng Z chuyên ép xung.' },
-        { id:'x670e', name:'Mainboard X670E',   price:8900000, lvl:6, maxV:1.55, droop:0.75, maxBclk:112, note:'VRM mạnh, cấp điện rất ổn định.' },
-        { id:'z790apex', name:'Mainboard Z790 Apex', price:13500000, lvl:7, maxV:1.60, droop:0.65, maxBclk:115, note:'Bo mạch thi đấu, Vdroop cực thấp.' },
+        { id:'h510m', name:'Mainboard H510M',   price:1400000, lvl:1, socket:'LGA1200', ramType:'DDR4', ramBus:[2133,2400,2666,2933,3200], maxV:1.30, droop:1.25, maxBclk:103, note:'VRM yếu, giới hạn Vcore 1.30V, Vdroop lớn.' },
+        { id:'b660m', name:'Mainboard B660M',   price:2600000, lvl:2, socket:'LGA1700', ramType:'DDR4', ramBus:[2133,2400,2666,2933,3200,3600,4000], maxV:1.40, droop:1.00, maxBclk:105, note:'VRM khá, Vdroop trung bình.' },
+        { id:'b550m', name:'Mainboard B550M',   price:2500000, lvl:2, socket:'AM4',     ramType:'DDR4', ramBus:[2133,2400,2666,2933,3200,3600,4000,4400], maxV:1.42, droop:0.95, maxBclk:105, note:'Bo mạch AM4 cho Ryzen 5000, VRM khá.' },
+        { id:'z690',  name:'Mainboard Z690',    price:5200000, lvl:4, socket:'LGA1700', ramType:'DDR5', ramBus:[4800,5200,5600,6000,6400,6800,7200], maxV:1.50, droop:0.85, maxBclk:110, note:'Dòng Z chuyên ép xung.' },
+        { id:'x670e', name:'Mainboard X670E',   price:8900000, lvl:6, socket:'AM5',     ramType:'DDR5', ramBus:[4800,5200,5600,6000,6400,6800,7200], maxV:1.55, droop:0.75, maxBclk:112, note:'VRM mạnh, cấp điện rất ổn định.' },
+        { id:'z790apex', name:'Mainboard Z790 Apex', price:13500000, lvl:7, socket:'LGA1700', ramType:'DDR5', ramBus:[4800,5200,5600,6000,6400,6800,7200,7600,8000], maxV:1.60, droop:0.65, maxBclk:115, note:'Bo mạch thi đấu, Vdroop cực thấp.' },
       ],
       psu: [
         { id:'psu450',  name:'PSU 450W',         price:700000,  lvl:1, watts:450,  note:'Đủ cho cấu hình khởi đầu.' },
@@ -835,6 +838,41 @@
     function instOf(uid){ return S.inventory.find(i => i.uid === uid); }
     function eqInst(cat){ return instOf(S.equipped[cat]); }
     function eqItem(cat){ const i = eqInst(cat); return i ? itemOf(cat, i.itemId) : null; }
+
+    /* ---------------- TƯƠNG THÍCH SOCKET / RAM ----------------
+       CPU chỉ lắp được khi socket trùng mainboard; RAM chỉ lắp được
+       khi đúng loại (DDR4/DDR5) và bus nằm trong danh sách mainboard
+       hỗ trợ. Kiểm tra chỉ áp dụng cho lần MUA và LẮP mới — món đã lắp
+       từ bản lưu cũ cứ giữ nguyên, không bị tháo ra. */
+    const ramTypeOf = ramIt => ramIt.ddr5 ? 'DDR5' : 'DDR4';
+    function cpuCompatReason(cpuIt, boardIt){
+      if (!cpuIt || !boardIt) return null;
+      return cpuIt.socket !== boardIt.socket
+        ? 'CPU socket ' + cpuIt.socket + ' không khớp mainboard socket ' + boardIt.socket
+        : null;
+    }
+    function ramCompatReason(ramIt, boardIt){
+      if (!ramIt || !boardIt) return null;
+      const t = ramTypeOf(ramIt);
+      if (t !== boardIt.ramType) return 'RAM ' + t + ' không khớp mainboard chỉ dùng ' + boardIt.ramType;
+      if (!boardIt.ramBus.includes(ramIt.freq)) return 'Bus RAM ' + ramIt.freq + ' MHz không nằm trong danh sách mainboard hỗ trợ (' + boardIt.ramBus.join(' / ') + ' MHz)';
+      return null;
+    }
+    function compatReason(cat, it, boardIt){
+      if (cat === 'cpu') return cpuCompatReason(it, boardIt);
+      if (cat === 'ram') return ramCompatReason(it, boardIt);
+      return null;
+    }
+    /* Mua mainboard mới: liệt kê CPU/RAM ĐANG LẮP sẽ không dùng được với board đó */
+    function boardSwapWarnings(boardIt){
+      const warns = [];
+      const cpu = eqItem('cpu'), ram = eqItem('ram');
+      const cr = cpuCompatReason(cpu, boardIt);
+      if (cr) warns.push('CPU đang lắp ' + cpu.name + ' sẽ KHÔNG dùng được nữa — ' + cr + '.');
+      const rr = ramCompatReason(ram, boardIt);
+      if (rr) warns.push('RAM đang lắp ' + ram.name + ' sẽ KHÔNG dùng được nữa — ' + rr + '.');
+      return warns;
+    }
     function levelOf(xp){ let l = 1; while (xp >= xpNeed(l)) l++; return l; }
 
     let S = newGame();
@@ -976,8 +1014,10 @@
       setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .4s'; setTimeout(() => t.remove(), 420); }, 3400);
     }
     let modalCb = null;
-    function askConfirm(title, text, cb){
+    function askConfirm(title, text, cb, danger){
       $('modalTitle').textContent = title; $('modalText').textContent = text;
+      $('modalTitle').style.color = danger ? '#ff8a8a' : '#fff';
+      $('modalText').style.color = danger ? '#ffc4c4' : '';
       $('modalWrap').classList.add('on'); modalCb = cb;
     }
     $('modalCancel').addEventListener('click', () => { $('modalWrap').classList.remove('on'); modalCb = null; });
@@ -1242,9 +1282,9 @@
       /* Cấu hình */
       const ci = eqInst('cpu');
       $('dConfig').innerHTML =
-        kv('CPU', c.cpu.name + ' · Silicon: ' + (ci.revealed ? ci.silicon + '/100' : 'chưa rõ')) +
-        kv('GPU', c.gpu.name) + kv('RAM', c.ram.name) +
-        kv('Mainboard', c.board.name) + kv('PSU', c.psu.name) + kv('Tản nhiệt', c.cooler.name) +
+        kv('CPU', c.cpu.name + ' · Socket ' + c.cpu.socket + ' · Silicon: ' + (ci.revealed ? ci.silicon + '/100' : 'chưa rõ')) +
+        kv('GPU', c.gpu.name) + kv('RAM', c.ram.name + ' · ' + ramTypeOf(c.ram) + ' bus ' + c.ram.freq + ' MHz') +
+        kv('Mainboard', c.board.name + ' · Socket ' + c.board.socket + ' · ' + c.board.ramType + ' · Bus hỗ trợ ' + c.board.ramBus.join(' / ') + ' MHz') + kv('PSU', c.psu.name) + kv('Tản nhiệt', c.cooler.name) +
         kv('Xung RAM hiệu dụng', cl.ramFreqEff + ' MHz · CL' + S.oc.ramCL + ' · ' + f3(S.oc.ramVolt) + 'V');
       /* Độ bền */
       $('dDur').innerHTML = ['cpu','gpu','ram','board','psu','cooler'].map(cat => {
@@ -1724,23 +1764,28 @@
     document.querySelectorAll('#shopCats button').forEach(b => b.addEventListener('click', () => {
       shopCat = b.dataset.cat;
       document.querySelectorAll('#shopCats button').forEach(x => x.classList.toggle('on', x === b));
-      renderShop(); sndClick();
+      renderShop(); renderShopAdvice(); sndClick();
     }));
     function specText(cat, it){
-      if (cat === 'cpu') return 'Xung gốc ' + it.baseFreq + ' MHz · Vcore gốc ' + f2(it.baseV) + 'V · TDP ' + it.tdp + 'W\nĐiểm gốc ~' + it.baseScore.toLocaleString('vi-VN') + ' · ' + it.note;
+      if (cat === 'cpu') return 'Socket ' + it.socket + ' · Xung gốc ' + it.baseFreq + ' MHz · Vcore gốc ' + f2(it.baseV) + 'V · TDP ' + it.tdp + 'W\nĐiểm gốc ~' + it.baseScore.toLocaleString('vi-VN') + ' · ' + it.note;
       if (cat === 'gpu') return 'Core ' + it.core + ' MHz · Mem ' + it.mem + ' MHz · TDP ' + it.tdp + 'W\nĐiểm gốc ~' + it.baseScore.toLocaleString('vi-VN') + ' · ' + it.note;
-      if (cat === 'ram') return it.freq + ' MHz · CL' + it.cl + ' · ' + f2(it.baseV) + 'V' + (it.ddr5 ? ' · DDR5' : ' · DDR4') + '\n' + it.note;
-      if (cat === 'board') return 'Vcore tối đa ' + f2(it.maxV) + 'V · Hệ số Vdroop ×' + it.droop + ' · BCLK tối đa ' + it.maxBclk + '\n' + it.note;
+      if (cat === 'ram') return 'Loại ' + ramTypeOf(it) + ' · Bus ' + it.freq + ' MHz · CL' + it.cl + ' · ' + f2(it.baseV) + 'V\n' + it.note;
+      if (cat === 'board') return 'Socket ' + it.socket + ' · RAM ' + it.ramType + ' · Bus hỗ trợ: ' + it.ramBus.join(' / ') + ' MHz\nVcore tối đa ' + f2(it.maxV) + 'V · Hệ số Vdroop ×' + it.droop + ' · BCLK tối đa ' + it.maxBclk + '\n' + it.note;
       if (cat === 'psu') return 'Công suất ' + it.watts + 'W\n' + it.note;
       return 'Hệ số tản ' + it.coeff + ' °C/W' + (it.base < 0 ? ' · Nhiệt bắt đầu ' + it.base + '°C' : '') + '\n' + it.note;
     }
     function renderShop(){
       const lvl = levelOf(S.xp);
+      const boardNow = eqItem('board');
       $('shopGrid').innerHTML = '';
       CATALOG[shopCat].forEach(it => {
         const owned = S.inventory.filter(i => i.itemId === it.id);
         const isEq = owned.some(i => S.equipped[shopCat] === i.uid);
         const locked = lvl < it.lvl;
+        /* Tương thích với mainboard ĐANG LẮP: CPU/RAM không khớp thì chặn mua;
+           mainboard mới thì cảnh báo CPU/RAM đang lắp nào sẽ không dùng được */
+        const incompat = (shopCat === 'cpu' || shopCat === 'ram') ? compatReason(shopCat, it, boardNow) : null;
+        const swapWarns = shopCat === 'board' && !isEq ? boardSwapWarnings(it) : [];
         /* Trao đổi: món thừa (chưa lắp, khác model) có giá trị cao nhất cùng loại sẽ được thu lại */
         const spares = S.inventory.filter(i => i.cat === shopCat && S.equipped[shopCat] !== i.uid && i.itemId !== it.id && sellValue(i) > 0)
           .sort((a,b) => sellValue(b) - sellValue(a));
@@ -1750,11 +1795,14 @@
         const card = document.createElement('div'); card.className = 'card item';
         card.innerHTML = '<div class="thumb">' + thumbSVG(shopCat, it) + '</div><div class="nm">' + it.name + '</div>' +
           '<div>' + (isEq ? '<span class="tag eq">Đang lắp</span>' : owned.length ? '<span class="tag own">Đã có ×' + owned.length + '</span>' : '') +
+          (incompat ? '<span class="tag no">⛔ Không tương thích với mainboard hiện tại</span>' : '') +
           '<span class="tag">Yêu cầu cấp ' + it.lvl + '</span></div>' +
           '<div class="spec">' + specText(shopCat, it) + '</div>' +
+          (incompat ? '<div class="compat-note">Không mua/lắp được: ' + incompat + '. Hãy chọn món khớp với ' + boardNow.name + ' hoặc nâng mainboard trước.</div>' : '') +
+          (swapWarns.length ? '<div class="compat-note">⚠ Nếu đổi sang mainboard này: ' + swapWarns.join(' ') + '</div>' : '') +
           '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="price">' + (it.price ? fmt(it.price) : 'Miễn phí') + '</span>' +
-          '<button class="buybtn primary" ' + (locked || S.money < it.price ? 'disabled' : '') + '>' + (locked ? '🔒 Cấp ' + it.lvl : S.money < it.price ? 'Thiếu tiền' : 'Mua') + '</button></div>' +
-          (bestSpare && !locked && it.price > 0 ? '<button class="tradebtn" style="width:100%;margin-top:8px">🔁 Đổi ' + itemOf(shopCat, bestSpare.itemId).name + (net > 0 ? ' — bù ' + fmt(net) : net < 0 ? ' — nhận lại ' + fmt(-net) : ' — không bù tiền') + '</button>' : '');
+          '<button class="buybtn primary" ' + (locked || incompat || S.money < it.price ? 'disabled' : '') + '>' + (locked ? '🔒 Cấp ' + it.lvl : incompat ? 'Không tương thích' : S.money < it.price ? 'Thiếu tiền' : 'Mua') + '</button></div>' +
+          (bestSpare && !locked && !incompat && it.price > 0 ? '<button class="tradebtn" style="width:100%;margin-top:8px">🔁 Đổi ' + itemOf(shopCat, bestSpare.itemId).name + (net > 0 ? ' — bù ' + fmt(net) : net < 0 ? ' — nhận lại ' + fmt(-net) : ' — không bù tiền') + '</button>' : '');
         card.querySelector('.buybtn').addEventListener('click', () => buyItem(shopCat, it));
         const tb = card.querySelector('.tradebtn');
         if (tb) tb.addEventListener('click', () => tradeIn(shopCat, it, bestSpare));
@@ -1762,6 +1810,23 @@
       });
     }
     function buyItem(cat, it){
+      if (S.money < it.price){ toast('Không đủ tiền.', 'err'); return; }
+      if (cat === 'cpu' || cat === 'ram'){
+        const r = compatReason(cat, it, eqItem('board'));
+        if (r){ toast('⛔ Không mua được ' + it.name + ': ' + r + '.', 'err'); sndErr(); return; }
+      }
+      if (cat === 'board'){
+        const warns = boardSwapWarnings(it);
+        if (warns.length){
+          askConfirm('⚠ Cảnh báo tương thích mainboard',
+            'Mainboard mới: ' + it.name + ' (socket ' + it.socket + ' · RAM ' + it.ramType + ', bus hỗ trợ ' + it.ramBus.join(' / ') + ' MHz).\n\n' + warns.join('\n') + '\n\nMón không tương thích vẫn nằm trong Kho, chỉ dùng lại được khi bạn có linh kiện khớp. Bạn vẫn muốn mua mainboard này chứ?',
+            () => doBuy(cat, it), true);
+          return;
+        }
+      }
+      doBuy(cat, it);
+    }
+    function doBuy(cat, it){
       if (S.money < it.price){ toast('Không đủ tiền.', 'err'); return; }
       S.money -= it.price;
       const inst = mkInstance(cat, it.id);
@@ -1791,6 +1856,26 @@
         html += '<div style="font-size:14px">Máy đang ổn. Nếu muốn ép cao hơn, <b>' + best.it.name + '</b> (' + fmt(best.it.price) + ') cho hiệu quả hạ nhiệt trên giá tốt nhất: giảm ~' + Math.round(best.gain) + '°C ở tải hiện tại.</div>';
       } else {
         html += '<div style="font-size:14px">Bạn đã sở hữu các tản nhiệt tốt nhất trong tầm cấp độ. Hãy tập trung nâng CPU/GPU để tăng điểm.</div>';
+      }
+      /* Nhắc tương thích: đang xem CPU/RAM mà có món không lắp được với mainboard hiện tại */
+      const boardNow = eqItem('board');
+      if ((shopCat === 'cpu' || shopCat === 'ram') && boardNow){
+        const bad = CATALOG[shopCat]
+          .map(it => ({ it, r: compatReason(shopCat, it, boardNow) }))
+          .filter(x => x.r);
+        if (bad.length){
+          html += '<div class="alert r" style="margin-top:10px">⛔ <b>Tương thích:</b> mainboard hiện tại <b>' + boardNow.name + '</b> (socket ' + boardNow.socket + ' · RAM ' + boardNow.ramType + ', bus hỗ trợ ' + boardNow.ramBus.join(' / ') + ' MHz) không lắp được: ' +
+            bad.map(x => '<b>' + x.it.name + '</b> — ' + x.r).join('; ') +
+            '. Chọn món khớp socket/loại RAM/bus, hoặc nâng mainboard trước rồi mới mua.</div>';
+        }
+      }
+      if (shopCat === 'board' && boardNow){
+        const badBoards = CATALOG.board.filter(b => b.id !== boardNow.id && boardSwapWarnings(b).length);
+        if (badBoards.length){
+          html += '<div class="alert y" style="margin-top:10px">⚠ <b>Lưu ý khi đổi mainboard:</b> ' +
+            badBoards.map(b => '<b>' + b.name + '</b> (socket ' + b.socket + ' · ' + b.ramType + ') sẽ khiến linh kiện đang lắp không dùng được — ' + boardSwapWarnings(b).join(' ')).join(' ') +
+            '</div>';
+        }
       }
       $('shopAdvice').innerHTML = html;
     }
@@ -1838,20 +1923,26 @@
       });
     }
     function tradeIn(cat, it, spare){
+      if (cat === 'cpu' || cat === 'ram'){
+        const r = compatReason(cat, it, eqItem('board'));
+        if (r){ toast('⛔ Không đổi được sang ' + it.name + ': ' + r + '.', 'err'); sndErr(); return; }
+      }
       const tv = sellValue(spare);
       const spareIt = itemOf(cat, spare.itemId);
       const net = it.price - tv;
       if (net > S.money){ toast('Không đủ tiền bù phần chênh lệch ' + fmt(net) + '.', 'err'); return; }
+      const swapWarns = cat === 'board' ? boardSwapWarnings(it) : [];
       const text = 'Đưa lại: ' + spareIt.name + '\nĐịnh giá thu lại: ' + fmt(tv) + ' (theo tình trạng hiện tại)\n' +
         'Nhận mới: ' + it.name + ' — ' + fmt(it.price) + '\n' +
-        (net > 0 ? 'Bạn bù thêm: ' + fmt(net) : net < 0 ? 'Cửa hàng hoàn lại bạn: ' + fmt(-net) : 'Không cần bù thêm tiền.');
+        (net > 0 ? 'Bạn bù thêm: ' + fmt(net) : net < 0 ? 'Cửa hàng hoàn lại bạn: ' + fmt(-net) : 'Không cần bù thêm tiền.') +
+        (swapWarns.length ? '\n\n⚠ CẢNH BÁO TƯƠNG THÍCH:\n' + swapWarns.join('\n') : '');
       askConfirm('Trao đổi linh kiện?', text, () => {
         S.inventory = S.inventory.filter(i => i.uid !== spare.uid);
         S.money -= net;
         S.inventory.push(mkInstance(cat, it.id));
         toast('🔁 Đã đổi ' + spareIt.name + ' lấy ' + it.name + (net > 0 ? ' — bù ' + fmt(net) : net < 0 ? ' — nhận lại ' + fmt(-net) : '') + '. Vào Kho Linh Kiện để lắp món mới.');
         sndCoin(); saveGame(true); refreshAll();
-      });
+      }, swapWarns.length > 0);
     }
 
     /* ============================================================
@@ -1894,10 +1985,15 @@
           const isEq = S.equipped[cat] === inst.uid;
           const val = sellValue(inst);
           const repairCost = Math.round(it.price * 0.25);
+          /* Chặn lắp món không tương thích với mainboard đang dùng (chỉ áp dụng cho lần lắp mới) */
+          const incompat = !isEq && (cat === 'cpu' || cat === 'ram') ? compatReason(cat, it, eqItem('board')) : null;
+          const swapWarns = !isEq && cat === 'board' ? boardSwapWarnings(it) : [];
           const card = document.createElement('div'); card.className = 'card item' + (isEq ? ' equipped' : '');
           card.innerHTML = '<div class="thumb">' + thumbSVG(cat, it) + '</div><div class="nm">' + it.name + '</div>' +
-            '<div>' + (isEq ? '<span class="tag eq">Đang lắp</span>' : '') + (inst.broken ? '<span class="tag" style="color:var(--red);border-color:var(--red)">ĐÃ HỎNG</span>' : '') + '</div>' +
+            '<div>' + (isEq ? '<span class="tag eq">Đang lắp</span>' : '') + (inst.broken ? '<span class="tag" style="color:var(--red);border-color:var(--red)">ĐÃ HỎNG</span>' : '') + (incompat ? '<span class="tag no">⛔ Không tương thích với mainboard hiện tại</span>' : '') + '</div>' +
             '<div class="spec">' + specText(cat, it) + '</div>' +
+            (incompat ? '<div class="compat-note">Không lắp được: ' + incompat + '.</div>' : '') +
+            (swapWarns.length ? '<div class="compat-note">⚠ Nếu lắp mainboard này: ' + swapWarns.join(' ') + '</div>' : '') +
             (cat === 'cpu' ? '<div class="spec">Silicon: ' + (inst.revealed ? '<b style="color:' + (inst.silicon >= 90 ? 'var(--amber)' : 'var(--txt)') + '">' + inst.silicon + '/100</b>' : 'chưa rõ — chạy Benchmark để kiểm tra binning') + '</div>' : '') +
             '<div style="font-size:12.5px;color:var(--mut);margin-bottom:3px">Độ bền: ' + Math.round(inst.durability) + '%</div>' +
             '<div class="durbar" style="margin-bottom:9px"><i style="width:' + inst.durability + '%;background:' + (inst.durability > 50 ? 'var(--green)' : inst.durability > 25 ? 'var(--yellow)' : 'var(--red)') + '"></i></div>' +
@@ -1905,7 +2001,7 @@
               : val > 0 ? '<div class="sellinfo">Bán lại được: ' + fmt(val) + ' (' + Math.round(val / it.price * 100) + '% giá gốc)</div>'
               : '<div class="sellinfo" style="color:var(--mut)">Món này không có giá trị bán lại.</div>') +
             '<div class="rowflex">' +
-            (isEq ? '' : '<button class="small primary equip">Lắp vào máy</button>') +
+            (isEq ? '' : incompat ? '<button class="small equip" disabled>Không lắp được</button>' : '<button class="small primary equip">Lắp vào máy</button>') +
             (inst.durability < 100 ? '<button class="small repair">Sửa chữa (' + fmt(repairCost) + ')</button>' : '') +
             (!isEq && val > 0 ? '<button class="small sell">💰 Bán (' + fmt(val) + ')</button>' : '') +
             '</div>';
@@ -1925,10 +2021,19 @@
       });
     }
     function equipPart(inst){
-      S.equipped[inst.cat] = inst.uid;
       const it = itemOf(inst.cat, inst.itemId);
+      if (inst.cat === 'cpu' || inst.cat === 'ram'){
+        const r = compatReason(inst.cat, it, eqItem('board'));
+        if (r){ toast('⛔ Không lắp được ' + it.name + ': ' + r + '.', 'err'); sndErr(); return; }
+      }
+      S.equipped[inst.cat] = inst.uid;
       if (inst.cat === 'cpu'){ const ram = eqItem('ram'); S.oc = defaultOC(it, ram); toast('Đã lắp ' + it.name + ' — cài đặt ép xung đã đặt lại về mặc định của CPU mới.'); }
       else if (inst.cat === 'ram'){ S.oc.ramFreq = it.freq; S.oc.ramCL = it.cl; S.oc.ramVolt = it.baseV; toast('Đã lắp ' + it.name + ' — thông số RAM đặt lại mặc định.'); }
+      else if (inst.cat === 'board'){
+        const warns = boardSwapWarnings(it);
+        if (warns.length) toast('⚠ Đã lắp ' + it.name + ' nhưng lưu ý: ' + warns.join(' '), 'err');
+        else toast('Đã lắp ' + it.name + '.');
+      }
       else toast('Đã lắp ' + it.name + '.');
       markApplied(); sndOk(); saveGame(true); refreshAll();
     }
@@ -2054,9 +2159,9 @@
        ============================================================ */
     function refreshOC(){
       const cpu = eqItem('cpu'), gpu = eqItem('gpu'), ram = eqItem('ram'), board = eqItem('board');
-      $('ocCpuName').textContent = cpu.name + ' (gốc ' + cpu.baseFreq + ' MHz · ' + f2(cpu.baseV) + 'V · TDP ' + cpu.tdp + 'W)';
+      $('ocCpuName').textContent = cpu.name + ' (socket ' + cpu.socket + ' · gốc ' + cpu.baseFreq + ' MHz · ' + f2(cpu.baseV) + 'V · TDP ' + cpu.tdp + 'W)';
       $('ocGpuName').textContent = gpu.name;
-      $('ocRamName').textContent = ram.name + (ram.ddr5 ? ' · DDR5 chịu volt tới 1.45V' : '');
+      $('ocRamName').textContent = ram.name + ' · ' + ramTypeOf(ram) + ' bus ' + ram.freq + ' MHz' + (ram.ddr5 ? ' · DDR5 chịu volt tới 1.45V' : '');
       CONTROLS.forEach(c => {
         const vEl = $('v-' + c.key), rEl = $('r-' + c.key);
         if (vEl) vEl.textContent = c.fmt(S.oc[c.key]);
