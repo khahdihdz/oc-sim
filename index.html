@@ -57,7 +57,17 @@
       .xpwrap{ flex:1 1 160px; min-width:140px; max-width:340px; }
       .xpbar{ height:8px; background:#1a2233; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
       .xpbar i{ display:block; height:100%; background:var(--cyan); width:0%; transition:width .4s; }
-      .hudbtns{ display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
+      .hudbtns{ display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; align-items:center; }
+      /* ---------- Badge Online (số người trực tuyến thật qua MQTT) ---------- */
+      .online-badge{ display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:12.5px; color:var(--txt); background:#0a1410; border:1px solid #1f5138; border-radius:999px; padding:4px 11px; white-space:nowrap; line-height:1.25; }
+      .online-badge .odot{ position:relative; width:8px; height:8px; border-radius:50%; background:var(--green); flex:0 0 auto; }
+      .online-badge .odot::after{ content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid var(--green); opacity:.7; animation:opulse 1.8s ease-out infinite; }
+      @keyframes opulse{ 0%{ transform:scale(.45); opacity:.8; } 100%{ transform:scale(1.2); opacity:0; } }
+      .online-badge.off{ border-color:var(--line); background:var(--panel2); color:var(--mut); }
+      .online-badge.off .odot{ background:var(--dim); }
+      .online-badge.off .odot::after{ display:none; }
+      @media (prefers-reduced-motion: reduce){ .online-badge .odot::after{ animation:none; opacity:0; } }
+      @media (max-width:560px){ .online-badge{ padding:4px 8px; } .online-badge .olbl{ display:none; } }
       button{ font-family:var(--sans); background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:6px 12px; cursor:pointer; font-size:14px; }
       button:hover{ border-color:var(--cyan); color:#fff; }
       button:active{ transform:translateY(1px); }
@@ -273,6 +283,7 @@
         <button id="btnSave" class="primary">💾 Lưu game</button>
         <button id="btnLoad">📂 Tải lại</button>
         <button id="btnNew" class="danger">↺ Chơi mới</button>
+        <span class="online-badge off" id="onlineBadge" role="status" title="Số người đang trực tuyến ngay lúc này"><span class="odot" aria-hidden="true"></span><span class="olbl">Online:&nbsp;</span><span id="onlineCount">--</span></span>
       </div>
     </header>
 
@@ -2098,6 +2109,99 @@
       refreshAll(); drawChart();
       if (loaded) toast('Đã tự động tải bản lưu trước đó. Bấm "Chơi mới" nếu muốn bắt đầu lại.');
       else toast('Chào mừng đến với xưởng ép xung! Bắt đầu: vào tab Ép Xung, tăng Multiplier +1 rồi qua Stress Test kiểm tra.');
+    })();
+    </script>
+    <script>
+    /* ============================================================
+       BADGE ONLINE — đếm người trực tuyến THẬT qua MQTT over WSS
+       Broker công khai EMQX, không cần server riêng.
+       - Mỗi người chơi: 1 id ngẫu nhiên, heartbeat retained mỗi 30s
+         lên topic oc-sim/presence/<id> (payload = mốc thời gian).
+       - Subscribe oc-sim/presence/# để đếm các id đang sống;
+         id nào quá 90s không heartbeat thì loại.
+       - Last Will (retained, payload rỗng) tự xóa topic khi mất kết nối.
+       - Không kết nối được / thư viện tải lỗi -> hiển thị "Online: --",
+         tuyệt đối không bịa số. mqtt.js tự kết nối lại khi mất mạng.
+       Script này độc lập, tải bất đồng bộ, không chặn và không
+       can thiệp vào logic game.
+       ============================================================ */
+    (function(){
+      var badge = document.getElementById('onlineBadge');
+      var el = document.getElementById('onlineCount');
+      if (!badge || !el) return;
+      var PREFIX = 'oc-sim/presence/';
+      var myId = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      var peers = Object.create(null); /* id -> lastSeen (ms) */
+      var connected = false;
+
+      function render(){
+        if (!connected){ el.textContent = '--'; badge.classList.add('off'); return; }
+        var now = Date.now(), n = 0, id;
+        for (id in peers){
+          if (now - peers[id] <= 90000) n++;
+          else delete peers[id];
+        }
+        el.textContent = String(Math.max(n, 1)); /* luôn tính cả chính mình khi đã kết nối */
+        badge.classList.remove('off');
+      }
+      function fail(){ connected = false; render(); }
+
+      function start(){
+        if (!window.mqtt || typeof window.mqtt.connect !== 'function'){ fail(); return; }
+        var client;
+        try {
+          client = window.mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+            clientId: 'oc-sim-' + myId,
+            clean: true,
+            reconnectPeriod: 5000,
+            connectTimeout: 15000,
+            keepalive: 60,
+            will: { topic: PREFIX + myId, payload: '', retain: true, qos: 0 }
+          });
+        } catch (e) { fail(); return; }
+
+        function beat(){
+          if (!client.connected) return;
+          peers[myId] = Date.now();
+          try { client.publish(PREFIX + myId, String(Date.now()), { retain: true, qos: 0 }); } catch (e) {}
+          render();
+        }
+        client.on('connect', function(){
+          connected = true;
+          client.subscribe(PREFIX + '#', { qos: 0 }, function(err){
+            if (err) { fail(); return; }
+            beat();
+          });
+        });
+        client.on('message', function(topic, payload){
+          if (topic.indexOf(PREFIX) !== 0) return;
+          var id = topic.slice(PREFIX.length);
+          if (!id || id.indexOf('/') >= 0) return;
+          if (!payload || payload.length === 0) { delete peers[id]; render(); return; }
+          var ts = parseInt(payload.toString(), 10);
+          var now = Date.now();
+          /* Ưu tiên mốc thời gian trong payload để không đếm nhầm heartbeat cũ còn retained */
+          peers[id] = (ts > 0 && ts <= now + 5000) ? ts : now;
+          render();
+        });
+        client.on('close', function(){ connected = false; render(); });
+        client.on('error', function(){ /* mqtt.js tự kết nối lại; badge về "--" qua sự kiện close */ });
+        setInterval(beat, 30000);   /* heartbeat mỗi 30 giây */
+        setInterval(render, 10000); /* rà soát, loại id quá 90 giây */
+        window.addEventListener('beforeunload', function(){
+          try { client.publish(PREFIX + myId, '', { retain: true, qos: 0 }); client.end(true); } catch (e) {}
+        });
+      }
+
+      /* Tải mqtt.js bất đồng bộ từ CDN — lỗi tải thì giữ "Online: --" */
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
+      s.async = true;
+      s.onload = function(){ start(); };
+      s.onerror = function(){ fail(); };
+      document.head.appendChild(s);
+      setTimeout(function(){ if (!window.mqtt) fail(); }, 20000);
+      render();
     })();
     </script>
   </body>
