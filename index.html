@@ -144,6 +144,18 @@
       .tag.own{ color:var(--cyan); border-color:#1d4b63; }
       .durbar{ height:7px; background:#0a0e16; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
       .durbar i{ display:block; height:100%; background:var(--green); }
+      /* ---------- Kho: nhóm thu gọn (bấm để thả xuống) + bán / trao đổi ---------- */
+      .cathead{ width:100%; display:flex; align-items:center; gap:9px; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin:14px 0 10px; cursor:pointer; text-align:left; }
+      .cathead:hover{ border-color:var(--cyan); }
+      .cathead .ct{ font-size:15px; font-weight:700; color:var(--amber); letter-spacing:.02em; }
+      .cathead .cnt{ font-size:12px; color:var(--mut); font-family:var(--mono); }
+      .cathead .cval{ margin-left:auto; font-size:12.5px; color:var(--mut); font-family:var(--mono); }
+      .cathead .cval b{ color:var(--green); }
+      .cathead .arr{ font-size:13px; color:var(--cyan); display:inline-block; transition:transform .2s; }
+      .catsec.closed .cathead .arr{ transform:rotate(-90deg); }
+      .catsec.closed .catbody{ display:none; }
+      .sellinfo{ font-family:var(--mono); font-size:12.5px; color:var(--green); margin:0 0 8px; }
+      #modalText{ white-space:pre-line; }
       /* ---------- Missions / achievements ---------- */
       .mission{ display:flex; gap:12px; align-items:center; justify-content:space-between; }
       .mission .t{ font-weight:600; color:#fff; }
@@ -551,6 +563,7 @@
       <!-- ================= SHOP ================= -->
       <section class="tab" id="tab-shop">
         <h2>Cửa hàng linh kiện</h2>
+        <p class="muted">Có linh kiện thừa cùng loại trong Kho? Trên mỗi món sẽ có nút <b>🔁 Trao đổi</b>: cửa hàng thu lại món cũ theo giá trị thật (dựa trên độ bền) và bạn chỉ bù phần chênh lệch.</p>
         <div class="card mb" id="shopAdvice"></div>
         <div class="rowflex mb">
           <div class="seg" id="shopCats">
@@ -568,7 +581,7 @@
       <!-- ================= INVENTORY ================= -->
       <section class="tab" id="tab-inv">
         <h2>Kho linh kiện</h2>
-        <p class="muted">Lắp linh kiện đã mua vào máy. CPU mới mua sẽ có chất lượng silicon ngẫu nhiên (70–100) — chạy Benchmark một lần để kiểm tra binning và biết chất lượng thật.</p>
+        <p class="muted">Lắp linh kiện đã mua vào máy. CPU mới mua sẽ có chất lượng silicon ngẫu nhiên (70–100) — chạy Benchmark một lần để kiểm tra binning và biết chất lượng thật. Linh kiện thừa (chưa lắp) có thể <b>Bán</b> lại theo giá trị thật dựa trên độ bền, hoặc mang sang Cửa Hàng để <b>Trao đổi</b> bù tiền khi mua món mới cùng loại. Bấm vào tên từng nhóm linh kiện để thu gọn / thả xuống.</p>
         <div id="invList"></div>
       </section>
 
@@ -617,10 +630,7 @@
         <div class="ab-title">⚙ Bạn đã thay đổi <b id="applyCount">0</b> thông số — chưa áp dụng</div>
         <div class="ab-diff" id="applyDiff"></div>
       </div>
-      <div class="ab-btns">
-        <button id="btnUndoChanges">↩ Hoàn tác</button>
-        <button id="btnApplyChanges" class="primary">✓ Áp dụng</button>
-      </div>
+      <div class="ab-btns" id="applyBtns"></div>
     </div>
 
     <div id="toasts"></div>
@@ -979,10 +989,35 @@
         .filter(k => Math.abs((Number(S.oc[k]) || 0) - (Number(appliedOC[k]) || 0)) > 1e-9)
         .map(k => ({ key:k, from:appliedOC[k], to:S.oc[k] }));
     }
+    /* Hai nút của thanh Áp dụng chỉ được dựng khi thật sự có thay đổi chưa áp dụng,
+       để lúc thanh ẩn thì không tồn tại nút nào không bấm được trên trang. */
+    let applyBtnsBuilt = false;
+    function ensureApplyBtns(){
+      if (applyBtnsBuilt) return; applyBtnsBuilt = true;
+      const wrap = $('applyBtns'); if (!wrap) return;
+      const undo = document.createElement('button'); undo.id = 'btnUndoChanges'; undo.textContent = '↩ Hoàn tác';
+      const apply = document.createElement('button'); apply.id = 'btnApplyChanges'; apply.className = 'primary'; apply.textContent = '✓ Áp dụng';
+      undo.addEventListener('click', () => {
+        if (!appliedOC) return;
+        S.oc = JSON.parse(JSON.stringify(appliedOC));
+        vcoreStep = Number(S.oc.vstep) || 0.01;
+        refreshAll();
+        toast('Đã hoàn tác — quay về thông số đã áp dụng trước đó.');
+        sndClick();
+      });
+      apply.addEventListener('click', () => {
+        const n = ocDiff().length; if (!n) return;
+        markApplied(); saveGame(true);
+        toast('✔ Đã áp dụng ' + n + ' thay đổi thông số — cấu hình mới đã có hiệu lực và được lưu lại.');
+        sndOk();
+      });
+      wrap.appendChild(undo); wrap.appendChild(apply);
+    }
     function updateApplyBar(){
       const bar = $('applyBar'); if (!bar) return;
       const d = ocDiff();
       const on = d.length > 0;
+      if (on) ensureApplyBtns();
       bar.classList.toggle('on', on);
       document.body.classList.toggle('has-applybar', on);
       if (on){
@@ -992,20 +1027,6 @@
       }
     }
     function markApplied(){ appliedOC = snapshotOC(); updateApplyBar(); }
-    $('btnApplyChanges').addEventListener('click', () => {
-      const n = ocDiff().length; if (!n) return;
-      markApplied(); saveGame(true);
-      toast('✔ Đã áp dụng ' + n + ' thay đổi thông số — cấu hình mới đã có hiệu lực và được lưu lại.');
-      sndOk();
-    });
-    $('btnUndoChanges').addEventListener('click', () => {
-      if (!appliedOC) return;
-      S.oc = JSON.parse(JSON.stringify(appliedOC));
-      vcoreStep = Number(S.oc.vstep) || 0.01;
-      refreshAll();
-      toast('Đã hoàn tác — quay về thông số đã áp dụng trước đó.');
-      sndClick();
-    });
 
     function buildControls(){
       ['ctlCpu','ctlGpu','ctlRam'].forEach(id => $(id).innerHTML = '');
@@ -1614,14 +1635,23 @@
         const owned = S.inventory.filter(i => i.itemId === it.id);
         const isEq = owned.some(i => S.equipped[shopCat] === i.uid);
         const locked = lvl < it.lvl;
+        /* Trao đổi: món thừa (chưa lắp, khác model) có giá trị cao nhất cùng loại sẽ được thu lại */
+        const spares = S.inventory.filter(i => i.cat === shopCat && S.equipped[shopCat] !== i.uid && i.itemId !== it.id && sellValue(i) > 0)
+          .sort((a,b) => sellValue(b) - sellValue(a));
+        const bestSpare = spares[0] || null;
+        const tradeVal = bestSpare ? sellValue(bestSpare) : 0;
+        const net = it.price - tradeVal;
         const card = document.createElement('div'); card.className = 'card item';
         card.innerHTML = '<div class="thumb">' + thumbSVG(shopCat, it) + '</div><div class="nm">' + it.name + '</div>' +
           '<div>' + (isEq ? '<span class="tag eq">Đang lắp</span>' : owned.length ? '<span class="tag own">Đã có ×' + owned.length + '</span>' : '') +
           '<span class="tag">Yêu cầu cấp ' + it.lvl + '</span></div>' +
           '<div class="spec">' + specText(shopCat, it) + '</div>' +
           '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="price">' + (it.price ? fmt(it.price) : 'Miễn phí') + '</span>' +
-          '<button class="buybtn primary" ' + (locked || S.money < it.price ? 'disabled' : '') + '>' + (locked ? '🔒 Cấp ' + it.lvl : S.money < it.price ? 'Thiếu tiền' : 'Mua') + '</button></div>';
+          '<button class="buybtn primary" ' + (locked || S.money < it.price ? 'disabled' : '') + '>' + (locked ? '🔒 Cấp ' + it.lvl : S.money < it.price ? 'Thiếu tiền' : 'Mua') + '</button></div>' +
+          (bestSpare && !locked && it.price > 0 ? '<button class="tradebtn" style="width:100%;margin-top:8px">🔁 Đổi ' + itemOf(shopCat, bestSpare.itemId).name + (net > 0 ? ' — bù ' + fmt(net) : net < 0 ? ' — nhận lại ' + fmt(-net) : ' — không bù tiền') + '</button>' : '');
         card.querySelector('.buybtn').addEventListener('click', () => buyItem(shopCat, it));
+        const tb = card.querySelector('.tradebtn');
+        if (tb) tb.addEventListener('click', () => tradeIn(shopCat, it, bestSpare));
         $('shopGrid').appendChild(card);
       });
     }
@@ -1660,18 +1690,103 @@
     }
 
     /* ============================================================
-       KHO LINH KIỆN
+       BÁN LẠI & TRAO ĐỔI — định giá theo tình trạng thật của món đồ
+       Đồ cũ mất giá theo độ bền: gần như mới giữ giá tốt nhất, càng mòn
+       càng rẻ, hỏng hẳn chỉ còn giá phế liệu. CPU đã lộ silicon đẹp được
+       cộng giá, silicon xấu bị trừ, chưa kiểm tra binning bị ép giá nhẹ.
        ============================================================ */
+    function resaleRate(inst){
+      if (inst.broken) return 0.10;
+      const d = inst.durability;
+      return d >= 90 ? 0.65 : d >= 70 ? 0.55 : d >= 50 ? 0.45 : d >= 30 ? 0.35 : 0.25;
+    }
+    function sellValue(inst){
+      const it = itemOf(inst.cat, inst.itemId);
+      if (!it || !it.price) return 0;
+      let v = it.price * resaleRate(inst);
+      if (inst.cat === 'cpu'){
+        if (inst.revealed){ if (inst.silicon >= 90) v *= 1.15; else if (inst.silicon <= 75) v *= 0.90; }
+        else v *= 0.95;
+      }
+      return Math.max(0, Math.round(v / 1000) * 1000);
+    }
+    function sellBreakdown(inst){
+      const it = itemOf(inst.cat, inst.itemId);
+      const lines = ['Giá mua mới: ' + fmt(it.price),
+        'Tình trạng: ' + (inst.broken ? 'ĐÃ HỎNG — chỉ bán được giá phế liệu (10% giá gốc)' : 'độ bền ' + Math.round(inst.durability) + '% → thu về ' + Math.round(resaleRate(inst) * 100) + '% giá gốc')];
+      if (inst.cat === 'cpu'){
+        if (inst.revealed && inst.silicon >= 90) lines.push('Silicon đẹp ' + inst.silicon + '/100 (đã kiểm tra binning): cộng 15% giá bán.');
+        else if (inst.revealed && inst.silicon <= 75) lines.push('Silicon thấp ' + inst.silicon + '/100 (đã kiểm tra binning): trừ 10% giá bán.');
+        else if (!inst.revealed) lines.push('Chưa kiểm tra binning: người mua ép giá, trừ 5%.');
+      }
+      lines.push('Bạn nhận được: ' + fmt(sellValue(inst)));
+      return lines.join('\n');
+    }
+    function sellPart(inst){
+      const it = itemOf(inst.cat, inst.itemId);
+      const val = sellValue(inst);
+      askConfirm('Bán ' + it.name + '?', sellBreakdown(inst), () => {
+        S.inventory = S.inventory.filter(i => i.uid !== inst.uid);
+        S.money += val;
+        toast('💰 Đã bán ' + it.name + ' — nhận ' + fmt(val) + '.'); sndCoin(); saveGame(true); refreshAll();
+      });
+    }
+    function tradeIn(cat, it, spare){
+      const tv = sellValue(spare);
+      const spareIt = itemOf(cat, spare.itemId);
+      const net = it.price - tv;
+      if (net > S.money){ toast('Không đủ tiền bù phần chênh lệch ' + fmt(net) + '.', 'err'); return; }
+      const text = 'Đưa lại: ' + spareIt.name + '\nĐịnh giá thu lại: ' + fmt(tv) + ' (theo tình trạng hiện tại)\n' +
+        'Nhận mới: ' + it.name + ' — ' + fmt(it.price) + '\n' +
+        (net > 0 ? 'Bạn bù thêm: ' + fmt(net) : net < 0 ? 'Cửa hàng hoàn lại bạn: ' + fmt(-net) : 'Không cần bù thêm tiền.');
+      askConfirm('Trao đổi linh kiện?', text, () => {
+        S.inventory = S.inventory.filter(i => i.uid !== spare.uid);
+        S.money -= net;
+        S.inventory.push(mkInstance(cat, it.id));
+        toast('🔁 Đã đổi ' + spareIt.name + ' lấy ' + it.name + (net > 0 ? ' — bù ' + fmt(net) : net < 0 ? ' — nhận lại ' + fmt(-net) : '') + '. Vào Kho Linh Kiện để lắp món mới.');
+        sndCoin(); saveGame(true); refreshAll();
+      });
+    }
+
+    /* ============================================================
+       KHO LINH KIỆN — mỗi nhóm linh kiện là một mục bấm để thả xuống / thu gọn
+       ============================================================ */
+    const invOpen = { cpu:true, gpu:true, ram:true, board:true, psu:true, cooler:true };
     function renderInv(){
       const wrap = $('invList'); wrap.innerHTML = '';
+      const spares = S.inventory.filter(i => S.equipped[i.cat] !== i.uid && sellValue(i) > 0);
+      const spareTotal = spares.reduce((s,i) => s + sellValue(i), 0);
+      if (spares.length){
+        const sum = document.createElement('div'); sum.className = 'card mb';
+        sum.innerHTML = '<div class="rowflex" style="justify-content:space-between"><div style="font-size:14px">🧰 Bạn có <b>' + spares.length + ' linh kiện thừa</b> (chưa lắp) — bán lại thu về tổng cộng <b style="color:var(--green)">' + fmt(spareTotal) + '</b>. Giá bán tính theo tình trạng thật: đồ càng mòn càng mất giá, đồ hỏng chỉ còn giá phế liệu.</div>' +
+          '<button class="small primary" id="btnSellAll">Bán hết đồ thừa</button></div>';
+        sum.querySelector('#btnSellAll').addEventListener('click', () => {
+          askConfirm('Bán hết ' + spares.length + ' linh kiện thừa?', 'Bạn sẽ nhận tổng cộng ' + fmt(spareTotal) + '.\nCác món đang lắp trong máy không bị bán.', () => {
+            const uids = spares.map(i => i.uid);
+            S.inventory = S.inventory.filter(i => !uids.includes(i.uid));
+            S.money += spareTotal;
+            toast('💰 Đã bán ' + spares.length + ' linh kiện thừa — nhận ' + fmt(spareTotal) + '.'); sndCoin(); saveGame(true); refreshAll();
+          });
+        });
+        wrap.appendChild(sum);
+      }
       ['cpu','gpu','ram','board','psu','cooler'].forEach(cat => {
         const items = S.inventory.filter(i => i.cat === cat);
         if (!items.length) return;
-        const h = document.createElement('h3'); h.style.margin = '14px 0 8px'; h.textContent = CATNAME[cat]; wrap.appendChild(h);
+        const sec = document.createElement('div'); sec.className = 'catsec' + (invOpen[cat] ? '' : ' closed');
+        const catVal = items.filter(i => S.equipped[cat] !== i.uid).reduce((s,i) => s + sellValue(i), 0);
+        const head = document.createElement('button'); head.type = 'button'; head.className = 'cathead';
+        head.setAttribute('aria-expanded', invOpen[cat] ? 'true' : 'false');
+        head.innerHTML = '<span class="arr">▾</span><span class="ct">' + CATNAME[cat] + '</span><span class="cnt">' + items.length + ' món</span>' +
+          (catVal ? '<span class="cval">đồ thừa bán được <b>' + fmt(catVal) + '</b></span>' : '');
+        head.addEventListener('click', () => { invOpen[cat] = !invOpen[cat]; sec.classList.toggle('closed', !invOpen[cat]); head.setAttribute('aria-expanded', invOpen[cat] ? 'true' : 'false'); sndClick(); });
+        sec.appendChild(head);
+        const body = document.createElement('div'); body.className = 'catbody';
         const grid = document.createElement('div'); grid.className = 'shopgrid';
         items.forEach(inst => {
           const it = itemOf(cat, inst.itemId);
           const isEq = S.equipped[cat] === inst.uid;
+          const val = sellValue(inst);
           const repairCost = Math.round(it.price * 0.25);
           const card = document.createElement('div'); card.className = 'card item' + (isEq ? ' equipped' : '');
           card.innerHTML = '<div class="thumb">' + thumbSVG(cat, it) + '</div><div class="nm">' + it.name + '</div>' +
@@ -1680,9 +1795,13 @@
             (cat === 'cpu' ? '<div class="spec">Silicon: ' + (inst.revealed ? '<b style="color:' + (inst.silicon >= 90 ? 'var(--amber)' : 'var(--txt)') + '">' + inst.silicon + '/100</b>' : 'chưa rõ — chạy Benchmark để kiểm tra binning') + '</div>' : '') +
             '<div style="font-size:12.5px;color:var(--mut);margin-bottom:3px">Độ bền: ' + Math.round(inst.durability) + '%</div>' +
             '<div class="durbar" style="margin-bottom:9px"><i style="width:' + inst.durability + '%;background:' + (inst.durability > 50 ? 'var(--green)' : inst.durability > 25 ? 'var(--yellow)' : 'var(--red)') + '"></i></div>' +
+            (isEq ? '<div class="sellinfo" style="color:var(--mut)">Đang lắp trong máy — lắp món khác vào thay rồi mới bán / trao đổi được món này.</div>'
+              : val > 0 ? '<div class="sellinfo">Bán lại được: ' + fmt(val) + ' (' + Math.round(val / it.price * 100) + '% giá gốc)</div>'
+              : '<div class="sellinfo" style="color:var(--mut)">Món này không có giá trị bán lại.</div>') +
             '<div class="rowflex">' +
             (isEq ? '' : '<button class="small primary equip">Lắp vào máy</button>') +
             (inst.durability < 100 ? '<button class="small repair">Sửa chữa (' + fmt(repairCost) + ')</button>' : '') +
+            (!isEq && val > 0 ? '<button class="small sell">💰 Bán (' + fmt(val) + ')</button>' : '') +
             '</div>';
           const eq = card.querySelector('.equip');
           if (eq) eq.addEventListener('click', () => equipPart(inst));
@@ -1692,9 +1811,11 @@
             S.money -= repairCost; inst.durability = 100; inst.broken = false;
             toast('Đã sửa ' + it.name + ' về 100% độ bền.'); sndOk(); saveGame(true); refreshAll();
           });
+          const sl = card.querySelector('.sell');
+          if (sl) sl.addEventListener('click', () => sellPart(inst));
           grid.appendChild(card);
         });
-        wrap.appendChild(grid);
+        body.appendChild(grid); sec.appendChild(body); wrap.appendChild(sec);
       });
     }
     function equipPart(inst){
