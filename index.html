@@ -118,6 +118,13 @@
       .guide li::before{ counter-increment:gs; content:counter(gs); position:absolute; left:6px; top:6px; width:22px; height:22px; border-radius:50%; border:1px solid var(--line); text-align:center; line-height:22px; font-family:var(--mono); font-size:12px; color:var(--dim); }
       .guide li.done{ color:var(--txt); }
       .guide li.done::before{ background:#14532d; border-color:var(--green); color:#d9ffe9; }
+      .tips{ list-style:none; margin:0; padding:0; }
+      .tips li{ padding:6px 0; border-bottom:1px dashed #1d2637; font-size:13.5px; color:var(--mut); }
+      .tips li:last-child{ border-bottom:none; }
+      .tips li b{ color:var(--txt); }
+      .pf{ list-style:none; margin:0; padding:0; }
+      .pf li{ padding:5px 0; border-bottom:1px dashed #1d2637; font-size:13.5px; }
+      .pf li:last-child{ border-bottom:none; }
       /* ---------- Stress / chart ---------- */
       canvas#chart{ width:100%; height:230px; background:#05070b; border:1px solid var(--line); border-radius:6px; display:block; }
       .legend{ display:flex; gap:14px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; color:var(--mut); margin-top:6px; }
@@ -253,6 +260,18 @@
           <div class="card gauge"><div class="lbl">FPS ước tính</div><div class="val" id="dFps">--</div><div class="sub">Game giả lập 1080p</div></div>
           <div class="card gauge"><div class="lbl">Kỷ lục Benchmark</div><div class="val" id="dBest" style="color:var(--amber)">0</div><div class="sub" id="dBestSub">Chưa có lần chạy nào</div></div>
           <div class="card gauge"><div class="lbl">Độ ổn định dự kiến</div><div class="val" id="dStab">--</div><div class="sub" id="dStabSub">Hệ số an toàn volt</div></div>
+        </div>
+
+        <div class="card mt">
+          <h3>🧭 Gợi ý cho bạn lúc này</h3>
+          <div id="dashHintWarn"></div>
+          <div class="nextstep">
+            <div id="dashHintText">Đang phân tích…</div>
+            <div class="rowflex mt">
+              <button id="btnDashHintApply" class="primary">Áp dụng gợi ý ngay</button>
+              <button id="btnDashHintGo">Tới tab Ép Xung để xử lý</button>
+            </div>
+          </div>
         </div>
 
         <div class="card mt">
@@ -426,6 +445,19 @@
                 <li data-g="bench">Chạy Benchmark để ghi điểm và kiếm tiền nâng cấp.</li>
               </ol>
             </div>
+            <div class="mt">
+              <h3>💡 Mẹo hay — đọc 1 phút, đỡ crash cả buổi</h3>
+              <ul class="tips">
+                <li><b>Tăng từng nấc nhỏ:</b> mỗi lần chỉ đổi MỘT thông số (Multiplier +1 hoặc Vcore +0.01V) rồi test ngay. Đổi nhiều thứ cùng lúc thì crash cũng không biết thủ phạm là ai.</li>
+                <li><b>Thiếu volt: thử tăng LLC trước.</b> Nếu Vcore đặt đã đủ mà Vcore thực vẫn tụt (Vdroop), tăng LLC 1 mức sẽ bù droop mà ít nóng hơn hẳn so với tăng Vcore.</li>
+                <li><b>Giữ nhiệt CPU dưới 85°C:</b> qua 85°C là bắt đầu throttle — xung thực thấp hơn xung đặt, điểm benchmark tụt dù con số nhìn rất đẹp.</li>
+                <li><b>Vcore &lt; 1.35V là vùng an toàn</b> để chạy lâu dài. 1.35–1.45V chỉ nên dùng ngắn hạn lúc benchmark; trên 1.45V độ bền CPU tụt rất nhanh.</li>
+                <li><b>PSU nên dư khoảng 20%:</b> hệ thống ăn trên 95% công suất PSU là có nguy cơ sập nguồn giữa lúc test.</li>
+                <li><b>Test theo nấc 10s → 30s → 60s:</b> qua 10 giây chưa chắc đã ổn định thật; test dài mới lộ lỗi và mới hoàn thành được các nhiệm vụ lớn.</li>
+                <li><b>Silicon là vận may:</b> cùng một mẫu CPU, silicon 90+ cần ít volt hơn hẳn silicon 70 cho cùng mức xung. Chạy Benchmark 1 lần để lộ chỉ số silicon của CPU bạn.</li>
+                <li><b>Crash không đáng sợ:</b> màn hình xanh luôn kèm phân tích nguyên nhân và nút sửa 1 chạm — cứ mạnh dạn thử mức xung mới.</li>
+              </ul>
+            </div>
           </aside>
         </div>
       </section>
@@ -462,9 +494,17 @@
               <div class="card flat gauge"><div class="lbl">Trạng thái</div><div class="val" id="sStatus" style="font-size:20px">Sẵn sàng</div></div>
             </div>
           </div>
-          <div class="card">
-            <h3>Nhật ký kiểm tra</h3>
-            <ul class="log" id="stressLog"><li>Chọn thời lượng rồi bấm <b>Bắt đầu</b>. Volt thiếu, quá nhiệt hoặc vượt Power Limit đều có thể gây crash.</li></ul>
+          <div>
+            <div class="card mb">
+              <h3>🔍 Kiểm tra trước khi test — dự đoán kết quả</h3>
+              <ul class="pf" id="preflightList"></ul>
+              <div id="preflightVerdict" class="mt"></div>
+              <button id="btnPreflightFix" class="primary mt" style="display:none">Áp dụng gợi ý sửa</button>
+            </div>
+            <div class="card">
+              <h3>Nhật ký kiểm tra</h3>
+              <ul class="log" id="stressLog"><li>Chọn thời lượng rồi bấm <b>Bắt đầu</b>. Volt thiếu, quá nhiệt hoặc vượt Power Limit đều có thể gây crash.</li></ul>
+            </div>
           </div>
         </div>
       </section>
@@ -484,6 +524,7 @@
               <div class="bigscore" id="benchScore">0</div>
               <div id="benchBreak"></div>
             </div>
+            <div id="benchHint" class="mt"></div>
           </div>
           <div class="card">
             <h3>Lịch sử &amp; kỷ lục</h3>
@@ -1061,7 +1102,13 @@
       if (S.oc.bclk > 105) w.push({ z:'y', t:'🟡 BCLK ' + S.oc.bclk + ' MHz khá cao — bus PCIe/RAM bị kéo theo, dễ mất ổn định toàn hệ thống.' });
       if (c.marginRAM < 1) w.push({ z:'y', t:'🟡 RAM có thể không ổn định: volt RAM ' + f3(S.oc.ramVolt) + 'V cho ' + c.ramFreqEff + 'MHz CL' + S.oc.ramCL + '. Tăng volt RAM hoặc nới CL.' });
       if (c.marginGPU < 1) w.push({ z:'y', t:'🟡 GPU thiếu volt cho mức Core Offset hiện tại — dễ treo driver khi benchmark.' });
+      if (c.gpuTempTarget >= 92) w.push({ z:'r', t:'🔴 Nhiệt GPU dự kiến ' + Math.round(c.gpuTempTarget) + '°C khi tải nặng — rất nóng, GPU sẽ tự bóp xung. Tăng tốc quạt GPU hoặc giảm GPU Power Limit.' });
+      else if (c.gpuTempTarget >= 83) w.push({ z:'y', t:'🟡 Nhiệt GPU dự kiến ' + Math.round(c.gpuTempTarget) + '°C — hơi nóng. Tăng tốc quạt GPU thêm 10–20% sẽ mát và ổn định hơn.' });
+      if (c.margin >= 1 && c.margin < 1.03) w.push({ z:'y', t:'🟡 Hệ số an toàn tổng chỉ ' + Math.round(c.margin * 100) + '% — ổn định rất mong manh, test dài dễ lộ lỗi. Nới thêm chút volt cho thành phần sát ngưỡng nhất.' });
       ['cpu','gpu','ram'].forEach(cat => { const i = eqInst(cat); if (i && i.broken) w.push({ z:'r', t:'🔴 ' + CATNAME[cat] + ' ĐÃ HỎNG — vào Kho Linh Kiện để sửa hoặc lắp món khác trước khi test.' }); });
+      const cpuInst2 = eqInst('cpu');
+      if (cpuInst2 && !cpuInst2.broken && cpuInst2.durability < 40) w.push({ z: cpuInst2.durability < 25 ? 'r' : 'y', t:(cpuInst2.durability < 25 ? '🔴' : '🟡') + ' Độ bền CPU chỉ còn ' + Math.round(cpuInst2.durability) + '% — sắp hỏng hẳn. Giảm Vcore về dưới 1.35V, giữ nhiệt dưới 85°C, hoặc vào Kho sửa chữa (25% giá linh kiện).' });
+      if (cpuInst2 && !cpuInst2.revealed) w.push({ z:'g', t:'💡 Chưa rõ chất lượng silicon của CPU này — chạy Benchmark 1 lần để lộ chỉ số (70–100). Silicon càng cao, càng cần ít volt cho cùng mức xung, gợi ý sẽ chính xác hơn.' });
       return w;
     }
 
@@ -1071,25 +1118,52 @@
       const c = compute(1);
       const broken = ['cpu','gpu','ram','board','psu','cooler'].map(cat => eqInst(cat)).find(i => i && i.broken);
       if (broken) return { text:'Linh kiện ' + CATNAME[broken.cat] + ' đã hỏng. Vào tab Kho Linh Kiện để sửa chữa rồi mới test tiếp được.', apply:null, applyLabel:null };
+      if (c.psuLoad > 0.95) return { text:'PSU đang tải tới ' + Math.round(c.psuLoad * 100) + '% (' + Math.round(c.totalPower) + 'W / ' + c.psu.watts + 'W) — rất dễ sập nguồn khi stress test. Giảm GPU Power Limit −10% ngay để hạ tải, hoặc nâng PSU trong Cửa Hàng.', apply:() => setOC(CONTROLS[7], S.oc.gpuPL - 10) };
       if (c.cpuTempTarget >= 95) return { text:'Nhiệt dự kiến ' + Math.round(c.cpuTempTarget) + '°C — quá nóng. Giảm Multiplier −1 (bớt 100 MHz) để hạ nhiệt ngay.', apply:() => setOC(CONTROLS[0], S.oc.mult - 1) };
       if (c.marginCPU < 1){
         if (S.oc.llc < 4 && c.droop > 0.04) return { text:'Vcore thực bị Vdroop kéo xuống còn ' + f3(c.vReal) + 'V (cần ' + f3(c.reqV) + 'V). Tăng LLC lên mức ' + (S.oc.llc + 1) + ' để bù Vdroop mà không cần thêm volt đặt.', apply:() => { S.oc.llc = Math.min(5, S.oc.llc + 1); refreshAll(); } };
         return { text:'Thiếu volt cho ' + c.freqSet + ' MHz (thực ' + f3(c.vReal) + 'V / cần ' + f3(c.reqV) + 'V). Tăng Vcore +0.01V rồi stress test lại 10 giây.', apply:() => setOC(CONTROLS[2], S.oc.vcore + 0.01) };
       }
+      if (c.cpuTempTarget > 85){
+        const betterCooler = S.inventory.filter(i => i.cat === 'cooler' && !i.broken && S.equipped.cooler !== i.uid)
+          .map(i => ({ inst:i, it:itemOf('cooler', i.itemId) }))
+          .filter(x => x.it && x.it.coeff < c.cooler.coeff)
+          .sort((a, b) => a.it.coeff - b.it.coeff)[0];
+        if (betterCooler) return { text:'Nhiệt dự kiến ' + Math.round(c.cpuTempTarget) + '°C vì tản hiện tại đuối. Trong Kho đang có ' + betterCooler.it.name + ' mát hơn — lắp vào sẽ giảm khoảng ' + Math.round((c.cooler.coeff - betterCooler.it.coeff) * c.cpuPower) + '°C ở mức tải này.', apply:() => { S.equipped.cooler = betterCooler.inst.uid; refreshAll(); } };
+        let bestBuy = null;
+        CATALOG.cooler.forEach(it => {
+          if (S.inventory.some(i => i.itemId === it.id) || it.price === 0) return;
+          if (levelOf(S.xp) < it.lvl) return;
+          const gain = (c.cooler.coeff - it.coeff) * c.cpuPower;
+          if (gain <= 0) return;
+          const eff = gain / (it.price / 1000000);
+          if (!bestBuy || eff > bestBuy.eff) bestBuy = { it, gain, eff };
+        });
+        if (bestBuy && S.money >= bestBuy.it.price) return { text:'Nhiệt dự kiến ' + Math.round(c.cpuTempTarget) + '°C — tản hiện tại là nút thắt. Bạn đủ tiền mua ' + bestBuy.it.name + ' (' + fmt(bestBuy.it.price) + '), giảm khoảng ' + Math.round(bestBuy.gain) + '°C. Qua Cửa Hàng mua rồi lắp trong Kho.', apply:() => gotoTab('shop') };
+      }
       if (c.plLimited) return { text:'Xung đang bị Power Limit ' + c.plActive + 'W bóp lại. Tăng PL1 và PL2 thêm 25W (nhớ kiểm tra PSU còn dư tải).', apply:() => { setOC(CONTROLS[4], S.oc.pl1 + 25); setOC(CONTROLS[3], S.oc.pl2 + 25); } };
       if (c.marginRAM < 1) return { text:'RAM chưa ổn định ở ' + c.ramFreqEff + 'MHz CL' + S.oc.ramCL + '. Tăng volt RAM +0.02V.', apply:() => setOC(CONTROLS[12], S.oc.ramVolt + 0.02) };
       if (c.marginGPU < 1) return { text:'GPU thiếu volt cho Core Offset +' + S.oc.gpuCoreOff + ' MHz. Tăng GPU Voltage +0.01V.', apply:() => setOC(CONTROLS[8], S.oc.gpuVolt + 0.01) };
+      if (c.gpuTempTarget >= 92 && S.oc.fan < 100) return { text:'GPU dự kiến nóng tới ' + Math.round(c.gpuTempTarget) + '°C khi tải nặng. Tăng tốc quạt GPU lên ' + Math.min(100, S.oc.fan + 20) + '% để hạ nhiệt trước khi test.', apply:() => setOC(CONTROLS[9], S.oc.fan + 20) };
+      if (c.marginCPU >= 1 && c.marginCPU < 1.02) return { text:'Volt CPU chỉ dư ' + Math.round((c.marginCPU - 1) * 100) + '% so với mức cần — qua được test ngắn nhưng test dài dễ crash. Tăng Vcore +0.005V cho chắc ăn rồi test 30 giây.', apply:() => setOC(CONTROLS[2], S.oc.vcore + 0.005) };
+      const cpuInstA = eqInst('cpu');
+      if (cpuInstA && cpuInstA.durability < 35) return { text:'Độ bền CPU chỉ còn ' + Math.round(cpuInstA.durability) + '% — ép tiếp là dễ hỏng hẳn. Vào Kho Linh Kiện sửa chữa (25% giá máy) rồi hãy test tiếp.', apply:() => gotoTab('inv') };
+      if (cpuInstA && !cpuInstA.revealed) return { text:'Bạn chưa biết chất lượng silicon của CPU này. Chạy Benchmark 1 lần để lộ chỉ số silicon (70–100) — biết được rồi thì các gợi ý volt sẽ khớp đúng con CPU của bạn.', apply:() => gotoTab('bench') };
       if (c.cpuTempTarget <= 78 && c.marginCPU >= 1.02) return { text:'Mọi thứ đang ổn: nhiệt ' + Math.round(c.cpuTempTarget) + '°C, volt dư ' + Math.round((c.marginCPU - 1) * 100) + '%. Tăng Multiplier +1 (thêm ' + S.oc.bclk + ' MHz), giữ nguyên Vcore, rồi stress test 10 giây.', apply:() => setOC(CONTROLS[0], S.oc.mult + 1) };
+      if (c.marginRAM > 1.12 && S.oc.ramCL > 10) return { text:'RAM đang dư volt nhiều (hệ số an toàn ' + Math.round(c.marginRAM * 100) + '%). Siết timing CL −1 xuống CL' + (S.oc.ramCL - 1) + ' để giảm độ trễ, tăng điểm benchmark mà không cần thêm volt.', apply:() => setOC(CONTROLS[11], S.oc.ramCL - 1) };
+      if (c.marginGPU > 1.08 && c.gpuTempTarget < 82) return { text:'GPU còn nhiều dư địa: volt dư ' + Math.round((c.marginGPU - 1) * 100) + '%, nhiệt dự kiến chỉ ' + Math.round(c.gpuTempTarget) + '°C. Tăng GPU Core Offset +20 MHz để kiếm thêm điểm benchmark.', apply:() => setOC(CONTROLS[5], S.oc.gpuCoreOff + 20) };
       if (c.marginCPU > 1.12 && c.cpuTempTarget > 78) return { text:'Volt đang dư thừa mà nhiệt lại cao — giảm Vcore −0.01V để mát hơn, xung giữ nguyên.', apply:() => setOC(CONTROLS[2], S.oc.vcore - 0.01) };
       return { text:'Cấu hình đang cân bằng. Hãy chạy Stress Test 30 giây để xác nhận ổn định, sau đó Benchmark ghi điểm.', apply:() => { gotoTab('stress'); } };
     }
     function renderAdvisor(){
       const c = compute(1);
-      $('advWarnings').innerHTML = buildWarnings(c).slice(0, 5).map(w => '<div class="alert ' + w.z + '">' + w.t + '</div>').join('');
+      $('advWarnings').innerHTML = buildWarnings(c).map(w => '<div class="alert ' + w.z + '">' + w.t + '</div>').join('');
       currentAdvice = computeAdvice();
       $('advNextText').innerHTML = '<b>Gợi ý:</b> ' + currentAdvice.text;
       $('btnAdvApply').disabled = !currentAdvice.apply;
       $('btnAdvApply').textContent = currentAdvice.apply ? 'Áp Dụng Gợi Ý' : 'Không có thao tác tự động';
+      renderDashHint(c);
+      renderPreflight(c);
       /* Crash analysis */
       if (S.lastCrash){
         $('advCrash').style.display = 'block';
@@ -1108,6 +1182,49 @@
     }
     $('btnAdvRefresh').addEventListener('click', () => { renderAdvisor(); toast('Đã phân tích lại theo thông số hiện tại.'); sndClick(); });
     $('btnAdvApply').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); renderAdvisor(); toast('Đã áp dụng gợi ý.'); sndOk(); } });
+
+    /* Gợi ý rút gọn ngay ở Tổng Quan: cảnh báo quan trọng nhất + bước tiếp theo */
+    function renderDashHint(c){
+      const warnEl = $('dashHintWarn'); if (!warnEl) return;
+      const ws = buildWarnings(c);
+      const top = ws.find(x => x.z === 'r') || ws.find(x => x.z === 'y');
+      warnEl.innerHTML = top ? '<div class="alert ' + top.z + '">' + top.t + '</div>' : '<div class="alert g">🟢 Không có cảnh báo nào — hệ thống đang khỏe, cứ ép tiếp.</div>';
+      if (currentAdvice) $('dashHintText').innerHTML = '<b>Gợi ý:</b> ' + currentAdvice.text;
+      const b = $('btnDashHintApply');
+      b.disabled = !(currentAdvice && currentAdvice.apply);
+      b.textContent = currentAdvice && currentAdvice.apply ? 'Áp dụng gợi ý ngay' : 'Không có thao tác tự động';
+    }
+    $('btnDashHintGo').addEventListener('click', () => { gotoTab('oc'); sndClick(); });
+    $('btnDashHintApply').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); renderAdvisor(); toast('Đã áp dụng gợi ý.'); sndOk(); } });
+
+    /* Kiểm tra trước khi stress test: chấm từng mục và dự đoán qua / crash */
+    function renderPreflight(c){
+      const list = $('preflightList'); if (!list) return;
+      const broken = anyBroken();
+      const checks = [];
+      checks.push({ lv: broken ? 'bad' : 'ok', t: broken ? 'Linh kiện: có món ĐÃ HỎNG — sửa trong Kho trước khi test' : 'Linh kiện: tất cả nguyên vẹn' });
+      checks.push({ lv: c.marginCPU >= 1.02 ? 'ok' : c.marginCPU >= 1 ? 'warn' : 'bad',
+        t: 'Volt CPU: thực ' + f3(c.vReal) + 'V / cần ' + f3(c.reqV) + 'V cho ' + c.freqSet + ' MHz' + (c.marginCPU >= 1 ? ' — đủ' + (c.marginCPU < 1.02 ? ' nhưng sát ngưỡng' : '') : ' — THIẾU ' + f3(c.reqV - c.vReal) + 'V, gần như chắc chắn crash') });
+      checks.push({ lv: c.cpuTempTarget < 85 ? 'ok' : c.cpuTempTarget < 95 ? 'warn' : 'bad',
+        t: 'Nhiệt CPU dự kiến: ' + Math.round(c.cpuTempTarget) + '°C' + (c.cpuTempTarget >= 95 ? ' — chạm vùng tự ngắt 100°C' : c.cpuTempTarget >= 85 ? ' — sẽ bị throttle, xung thực giảm' : ' — mát') });
+      checks.push({ lv: c.psuLoad <= 0.8 ? 'ok' : c.psuLoad <= 0.95 ? 'warn' : 'bad',
+        t: 'Nguồn PSU: tải ' + Math.round(c.psuLoad * 100) + '% (' + Math.round(c.totalPower) + 'W / ' + c.psu.watts + 'W)' + (c.psuLoad > 0.95 ? ' — nguy cơ sập nguồn' : c.psuLoad > 0.8 ? ' — hơi căng, nên dư thêm' : ' — dư dả') });
+      checks.push({ lv: c.marginRAM >= 1 ? 'ok' : 'bad', t: 'RAM: ' + c.ramFreqEff + 'MHz CL' + S.oc.ramCL + ' ở ' + f3(S.oc.ramVolt) + 'V' + (c.marginRAM >= 1 ? ' — ổn định' : ' — CHƯA ổn định, dễ lỗi bộ nhớ') });
+      checks.push({ lv: c.marginGPU >= 1 ? 'ok' : 'bad', t: 'GPU: Core Offset +' + S.oc.gpuCoreOff + ' MHz ở ' + f3(S.oc.gpuVolt) + 'V' + (c.marginGPU >= 1 ? ' — ổn định' : ' — thiếu volt, dễ treo driver') });
+      checks.push({ lv: c.plLimited ? 'warn' : 'ok', t: 'Power Limit: ' + (c.plLimited ? 'đang bị bóp ở ' + c.plActive + 'W — test vẫn chạy nhưng xung thực thấp hơn xung đặt' : 'không giới hạn xung (' + c.plActive + 'W)') });
+      const icon = lv => lv === 'ok' ? '<b class="ok">✔</b>' : lv === 'warn' ? '<b class="warn">!</b>' : '<b class="bad">✖</b>';
+      list.innerHTML = checks.map(x => '<li>' + icon(x.lv) + ' ' + x.t + '</li>').join('');
+      const bads = checks.filter(x => x.lv === 'bad').length, warns = checks.filter(x => x.lv === 'warn').length;
+      const v = $('preflightVerdict');
+      if (bads) v.innerHTML = '<div class="alert r">🔴 Dự đoán: <b>GẦN NHƯ CHẮC CHẮN CRASH</b> — sửa ' + bads + ' mục ✖ ở trên trước đã. Bấm nút dưới để áp dụng gợi ý sửa ưu tiên nhất.</div>';
+      else if (warns) v.innerHTML = '<div class="alert y">🟡 Dự đoán: <b>CÓ RỦI RO</b> — có ' + warns + ' mục cần chú ý. Có thể qua test ngắn, nhưng test 30–60 giây dễ lộ lỗi.</div>';
+      else v.innerHTML = '<div class="alert g">🟢 Dự đoán: <b>KHẢ NĂNG CAO SẼ QUA</b> — mọi mục đều đạt. Bấm Bắt đầu Stress Test thôi!</div>';
+      const fb = $('btnPreflightFix');
+      const showFix = bads > 0 && currentAdvice && currentAdvice.apply;
+      fb.style.display = showFix ? '' : 'none';
+      if (showFix) fb.textContent = 'Áp dụng gợi ý sửa: ' + 'xử lý vấn đề ưu tiên nhất';
+    }
+    $('btnPreflightFix').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); renderAdvisor(); toast('Đã áp dụng gợi ý sửa. Xem lại bảng kiểm tra rồi test lại.'); sndOk(); } });
 
     /* Presets */
     document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
@@ -1315,8 +1432,18 @@
     function renderBenchPanel(){
       $('bBest').textContent = S.bestScore.toLocaleString('vi-VN') + ' điểm';
       $('bCount').textContent = S.stats.benches;
-      $('bFps').textContent = compute(1).fps + ' FPS';
+      const c = compute(1);
+      $('bFps').textContent = c.fps + ' FPS';
       $('benchHist').innerHTML = S.benchHist.length ? S.benchHist.map(h => '<li><b>' + h.score.toLocaleString('vi-VN') + ' điểm</b> — ' + h.at + '</li>').join('') : '<li>Chưa có kết quả nào.</li>';
+      /* Gợi ý nút thắt điểm: chỉ ra đúng thứ đang kéo điểm xuống */
+      const bh = $('benchHint'); if (!bh) return;
+      let hint, zone;
+      if (c.margin < 1){ hint = '⚠ Cấu hình chưa ổn định (hệ số an toàn volt ' + Math.round(c.margin * 100) + '%) — benchmark có thể crash giữa chừng và mất điểm. Ổn định volt trước (xem gợi ý ở tab Ép Xung) rồi hãy chạy.'; zone = 'r'; }
+      else if (c.throttle < 1){ hint = '🌡 Điểm đang bị NHIỆT bóp: nhiệt dự kiến ' + Math.round(c.cpuTempTarget) + '°C khiến xung hiệu dụng chỉ còn ' + Math.round(c.throttle * 100) + '%. Giảm Vcore/xung một nấc hoặc nâng tản nhiệt là điểm tăng ngay lập tức.'; zone = 'y'; }
+      else if (c.plLimited){ hint = '🔌 Điểm đang bị POWER LIMIT bóp ở ' + c.plActive + 'W. Tăng PL1/PL2 trong tab Ép Xung (nhớ để PSU còn dư tải) để xung giữ cao suốt bài test.'; zone = 'y'; }
+      else if (c.gpuTempTarget >= 88){ hint = '🎮 GPU dự kiến ' + Math.round(c.gpuTempTarget) + '°C khi tải nặng — gần ngưỡng tự bóp xung. Tăng tốc quạt GPU để giữ điểm ổn định.'; zone = 'y'; }
+      else { hint = '✅ Không có nút thắt nào đang bóp điểm. Muốn phá kỷ lục ' + S.bestScore.toLocaleString('vi-VN') + ' điểm: tăng Multiplier CPU +1, GPU Core Offset +20 MHz hoặc xung RAM — mỗi lần một nấc, stress test qua rồi mới benchmark.'; zone = 'g'; }
+      bh.innerHTML = '<div class="alert ' + zone + '"><b>Gợi ý tăng điểm:</b> ' + hint + '</div>';
     }
 
     /* ============================================================
