@@ -1,0 +1,1388 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>Game Giả Lập Ép Xung Máy Tính</title>
+    <style>
+      button, [role="button"], select, input:not([type="checkbox"], [type="radio"]) { min-height: 2.25rem; }
+      * { box-sizing: border-box; }
+      :root{
+        --bg:#07090d; --bg2:#0b0f16; --panel:#10151f; --panel2:#151b28; --line:#232c3d;
+        --txt:#dbe4f0; --mut:#8b98ad; --dim:#5c6a80;
+        --amber:#ffb000; --cyan:#38d6e8; --green:#3ddc84; --yellow:#ffd23e; --red:#ff5252;
+        --mono:ui-monospace,'Cascadia Mono','JetBrains Mono',Consolas,monospace;
+        --sans:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
+      }
+      html{ color-scheme:dark; }
+      body{ margin:0; background:var(--bg); color:var(--txt); font-family:var(--sans); font-size:15px; line-height:1.45; }
+      /* ---------- HUD ---------- */
+      .hud{ position:sticky; top:0; z-index:40; background:linear-gradient(180deg,#0d1220,#0a0e16); border-bottom:2px solid var(--amber); padding:8px 12px; display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; }
+      .hud .stat{ font-family:var(--mono); font-size:13px; }
+      .hud .stat b{ color:var(--amber); font-size:16px; }
+      .hud .stat span{ color:var(--mut); display:block; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+      .xpwrap{ flex:1 1 160px; min-width:140px; max-width:340px; }
+      .xpbar{ height:8px; background:#1a2233; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+      .xpbar i{ display:block; height:100%; background:var(--cyan); width:0%; transition:width .4s; }
+      .hudbtns{ display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
+      button{ font-family:var(--sans); background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:6px 12px; cursor:pointer; font-size:14px; }
+      button:hover{ border-color:var(--cyan); color:#fff; }
+      button:active{ transform:translateY(1px); }
+      button.primary{ background:#7a5200; border-color:var(--amber); color:#ffe9b0; font-weight:600; }
+      button.primary:hover{ background:#96670a; }
+      button.danger{ border-color:#7c2d2d; color:#ffb3b3; }
+      button:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
+      button.small{ padding:3px 9px; font-size:13px; min-height:2rem; }
+      /* ---------- Tabs ---------- */
+      nav.tabs{ display:flex; gap:4px; flex-wrap:wrap; padding:8px 12px 0; background:var(--bg2); border-bottom:1px solid var(--line); position:sticky; top:57px; z-index:39; }
+      nav.tabs button{ border-radius:6px 6px 0 0; border-bottom:none; background:transparent; color:var(--mut); font-weight:600; padding:8px 13px; }
+      nav.tabs button.on{ background:var(--panel); color:var(--amber); border-color:var(--line); box-shadow:inset 0 2px 0 var(--amber); }
+      main{ max-width:1240px; margin:0 auto; padding:14px 12px 60px; }
+      section.tab{ display:none; }
+      section.tab.on{ display:block; }
+      h2{ font-size:19px; margin:4px 0 12px; color:#fff; }
+      h3{ font-size:15px; margin:0 0 8px; color:var(--amber); letter-spacing:.02em; }
+      .grid{ display:grid; gap:12px; }
+      .g-dash{ grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
+      .g-oc{ grid-template-columns:minmax(0,1fr) 340px; align-items:start; }
+      @media (max-width:900px){ .g-oc{ grid-template-columns:1fr; } .hud{ position:static; } nav.tabs{ position:static; } }
+      @media (max-width:760px){ #stressGrid{ grid-template-columns:1fr !important; } }
+      .card{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+      .card.flat{ background:var(--panel2); }
+      .gauge .lbl{ font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.07em; }
+      .gauge .val{ font-family:var(--mono); font-size:26px; font-weight:700; color:#fff; line-height:1.15; }
+      .gauge .val small{ font-size:13px; color:var(--mut); font-weight:400; }
+      .gauge .sub{ font-family:var(--mono); font-size:12px; color:var(--mut); }
+      .meter{ height:9px; background:#0a0e16; border:1px solid var(--line); border-radius:5px; overflow:hidden; margin-top:6px; }
+      .meter i{ display:block; height:100%; width:0%; background:var(--green); transition:width .3s, background .3s; }
+      .ok{ color:var(--green); } .warn{ color:var(--yellow); } .bad{ color:var(--red); }
+      /* ---------- Controls ---------- */
+      .ctl{ display:grid; grid-template-columns:1fr auto; gap:2px 10px; padding:9px 0; border-bottom:1px dashed #1d2637; }
+      .ctl:last-child{ border-bottom:none; }
+      .ctl .name{ font-weight:600; font-size:14px; }
+      .ctl .desc{ grid-column:1; font-size:12px; color:var(--mut); }
+      .ctl .row{ grid-row:1 / span 2; display:flex; align-items:center; gap:5px; }
+      .ctl .v{ font-family:var(--mono); font-size:16px; min-width:86px; text-align:center; background:#0a0e16; border:1px solid var(--line); border-radius:5px; padding:5px 4px; color:var(--cyan); }
+      .ctl .step{ width:38px; font-family:var(--mono); font-size:17px; padding:4px 0; }
+      input[type=range]{ width:100%; accent-color:var(--amber); min-height:1.6rem; }
+      .seg{ display:flex; gap:4px; flex-wrap:wrap; }
+      .seg button.on{ background:#7a5200; border-color:var(--amber); color:#ffe9b0; font-weight:700; }
+      select{ background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:14px; }
+      .kv{ display:flex; justify-content:space-between; gap:10px; font-family:var(--mono); font-size:13.5px; padding:4px 0; border-bottom:1px dotted #1d2637; }
+      .kv:last-child{ border-bottom:none; }
+      .kv b{ color:#fff; } .kv span{ color:var(--mut); }
+      /* ---------- Advisor ---------- */
+      .advisor{ position:sticky; top:118px; }
+      @media (max-width:900px){ .advisor{ position:static; } }
+      .alert{ border-radius:6px; padding:8px 10px; margin:0 0 7px; font-size:13.5px; border:1px solid; }
+      .alert.g{ background:#0d2016; border-color:#1f5138; color:#b9f4d2; }
+      .alert.y{ background:#26200a; border-color:#6b5a14; color:#ffeeb0; }
+      .alert.r{ background:#2a1010; border-color:#7c2d2d; color:#ffc4c4; }
+      .nextstep{ background:#0a1626; border:1px solid #1d4b63; border-radius:6px; padding:10px; font-size:14px; }
+      .nextstep b{ color:var(--cyan); }
+      .guide{ list-style:none; margin:0; padding:0; counter-reset:gs; }
+      .guide li{ padding:7px 8px 7px 36px; position:relative; border-bottom:1px dashed #1d2637; font-size:13.5px; color:var(--mut); }
+      .guide li::before{ counter-increment:gs; content:counter(gs); position:absolute; left:6px; top:6px; width:22px; height:22px; border-radius:50%; border:1px solid var(--line); text-align:center; line-height:22px; font-family:var(--mono); font-size:12px; color:var(--dim); }
+      .guide li.done{ color:var(--txt); }
+      .guide li.done::before{ background:#14532d; border-color:var(--green); color:#d9ffe9; }
+      /* ---------- Stress / chart ---------- */
+      canvas#chart{ width:100%; height:230px; background:#05070b; border:1px solid var(--line); border-radius:6px; display:block; }
+      .legend{ display:flex; gap:14px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; color:var(--mut); margin-top:6px; }
+      .legend i{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; }
+      .log{ list-style:none; margin:0; padding:0; font-family:var(--mono); font-size:12.5px; max-height:190px; overflow:auto; }
+      .log li{ padding:3px 0; border-bottom:1px dotted #1a2233; color:var(--mut); }
+      .log li b{ color:var(--txt); }
+      .prog{ height:14px; background:#0a0e16; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+      .prog i{ display:block; height:100%; width:0%; background:var(--amber); transition:width .2s; }
+      /* ---------- Shop / inventory ---------- */
+      .shopgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+      .item .nm{ font-weight:700; color:#fff; font-size:15px; }
+      .item .price{ font-family:var(--mono); color:var(--amber); font-size:16px; font-weight:700; }
+      .spec{ font-family:var(--mono); font-size:12.5px; color:var(--mut); margin:6px 0; white-space:pre-line; }
+      .tag{ display:inline-block; font-size:11px; padding:1px 7px; border-radius:9px; border:1px solid var(--line); color:var(--mut); margin-right:4px; }
+      .tag.eq{ color:#0b0f16; background:var(--green); border-color:var(--green); font-weight:700; }
+      .tag.own{ color:var(--cyan); border-color:#1d4b63; }
+      .durbar{ height:7px; background:#0a0e16; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+      .durbar i{ display:block; height:100%; background:var(--green); }
+      /* ---------- Missions / achievements ---------- */
+      .mission{ display:flex; gap:12px; align-items:center; justify-content:space-between; }
+      .mission .t{ font-weight:600; color:#fff; }
+      .mission .d{ font-size:13px; color:var(--mut); }
+      .ach{ text-align:left; }
+      .ach .ic{ font-size:22px; }
+      .ach.locked{ opacity:.45; }
+      /* ---------- Overlays ---------- */
+      .overlay{ position:fixed; inset:0; z-index:100; display:none; align-items:center; justify-content:center; padding:14px; }
+      .overlay.on{ display:flex; }
+      #bsod{ background:#0b5fa5; color:#eaf6ff; font-family:var(--mono); }
+      #bsod .box{ max-width:640px; width:100%; }
+      #bsod .face{ font-size:64px; font-weight:300; }
+      #bsod button{ background:#fff; color:#0b5fa5; border-color:#fff; font-weight:700; }
+      #bsod .fix{ background:#fff; color:#083d68; }
+      #modalWrap{ background:rgba(0,0,0,.7); }
+      #modalWrap .box{ background:var(--panel); border:1px solid var(--line); border-radius:10px; max-width:440px; width:100%; padding:18px; }
+      #toasts{ position:fixed; bottom:14px; left:50%; transform:translateX(-50%); z-index:120; display:flex; flex-direction:column; gap:6px; width:min(92vw,440px); }
+      .toast{ background:#131a29; border:1px solid var(--cyan); color:#eafcff; border-radius:8px; padding:10px 14px; font-size:14px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+      .toast.err{ border-color:var(--red); }
+      .toast.gold{ border-color:var(--amber); }
+      .flash-red{ animation:fr .5s 3; } @keyframes fr{ 50%{ background:#3a0d0d; } }
+      .muted{ color:var(--mut); font-size:13px; }
+      .rowflex{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+      .mt{ margin-top:12px; } .mb{ margin-bottom:12px; }
+      .bigscore{ font-family:var(--mono); font-size:38px; font-weight:800; color:var(--amber); line-height:1.1; }
+    </style>
+  </head>
+  <body>
+    <!-- ================= HUD ================= -->
+    <header class="hud">
+      <div class="stat"><span>Tiền</span><b id="hudMoney">0 ₫</b></div>
+      <div class="stat"><span>Cấp độ</span><b id="hudLevel">1</b></div>
+      <div class="stat"><span>Danh hiệu</span><b id="hudRank" style="color:var(--cyan)">Nghiệp Dư</b></div>
+      <div class="xpwrap">
+        <div class="stat" style="margin-bottom:3px"><span style="display:inline">Kinh nghiệm</span> <b id="hudXpText" style="font-size:12px;color:var(--mut)">0 XP</b></div>
+        <div class="xpbar"><i id="hudXpFill"></i></div>
+      </div>
+      <div class="hudbtns">
+        <button id="btnSound" title="Bật/tắt âm thanh">🔊 Âm thanh</button>
+        <button id="btnSave" class="primary">💾 Lưu game</button>
+        <button id="btnLoad">📂 Tải lại</button>
+        <button id="btnNew" class="danger">↺ Chơi mới</button>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabNav">
+      <button data-tab="dashboard" class="on">Tổng Quan</button>
+      <button data-tab="oc">Ép Xung</button>
+      <button data-tab="stress">Stress Test</button>
+      <button data-tab="bench">Benchmark</button>
+      <button data-tab="shop">Cửa Hàng</button>
+      <button data-tab="inv">Kho Linh Kiện</button>
+      <button data-tab="missions">Nhiệm Vụ</button>
+      <button data-tab="ach">Thành Tích</button>
+    </nav>
+
+    <main>
+      <!-- ================= DASHBOARD ================= -->
+      <section class="tab on" id="tab-dashboard">
+        <h2>Bảng điều khiển — HWMonitor</h2>
+        <div class="grid g-dash">
+          <div class="card gauge"><div class="lbl">Nhiệt độ CPU</div><div class="val" id="dCpuTemp">--<small> °C</small></div><div class="meter"><i id="dCpuTempBar"></i></div><div class="sub" id="dCpuTempSub">TjMax 100°C</div></div>
+          <div class="card gauge"><div class="lbl">Nhiệt độ GPU</div><div class="val" id="dGpuTemp">--<small> °C</small></div><div class="meter"><i id="dGpuTempBar"></i></div><div class="sub" id="dGpuTempSub">Quạt 50%</div></div>
+          <div class="card gauge"><div class="lbl">Xung CPU hiệu dụng</div><div class="val" id="dClock">--<small> MHz</small></div><div class="sub" id="dClockSub">--</div></div>
+          <div class="card gauge"><div class="lbl">Vcore đặt / thực</div><div class="val" id="dVcore">--<small> V</small></div><div class="sub" id="dVcoreSub">Vdroop: --</div></div>
+          <div class="card gauge"><div class="lbl">Công suất toàn hệ</div><div class="val" id="dPower">--<small> W</small></div><div class="sub" id="dPowerSub">PSU: --</div></div>
+          <div class="card gauge"><div class="lbl">FPS ước tính</div><div class="val" id="dFps">--</div><div class="sub">Game giả lập 1080p</div></div>
+          <div class="card gauge"><div class="lbl">Kỷ lục Benchmark</div><div class="val" id="dBest" style="color:var(--amber)">0</div><div class="sub" id="dBestSub">Chưa có lần chạy nào</div></div>
+          <div class="card gauge"><div class="lbl">Độ ổn định dự kiến</div><div class="val" id="dStab">--</div><div class="sub" id="dStabSub">Hệ số an toàn volt</div></div>
+        </div>
+
+        <div class="grid mt" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+          <div class="card">
+            <h3>Cấu hình hiện tại</h3>
+            <div id="dConfig"></div>
+          </div>
+          <div class="card">
+            <h3>Cảnh báo hệ thống</h3>
+            <div id="dWarnings"></div>
+          </div>
+          <div class="card">
+            <h3>Độ bền linh kiện</h3>
+            <div id="dDur"></div>
+            <p class="muted">Độ bền giảm khi chạy Vcore &gt; 1.35V hoặc nhiệt &gt; 85°C trong thời gian dài (electromigration). Hỏng = phải sửa trong Kho hoặc mua mới.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= OC ================= -->
+      <section class="tab" id="tab-oc">
+        <h2>Ép xung — BIOS Setup</h2>
+        <div class="grid g-oc">
+          <div>
+            <div class="card mb">
+              <h3>CPU — <span id="ocCpuName">--</span></h3>
+              <div id="ctlCpu"></div>
+              <div class="ctl">
+                <div class="name">Load-Line Calibration (LLC)</div>
+                <div class="desc">Bù Vdroop: mức thấp tụt volt nhiều khi tải; mức cao ổn định hơn nhưng nóng hơn và vọt volt khi xả tải.</div>
+                <div class="row"><div class="seg" id="llcSeg"></div></div>
+              </div>
+              <div class="ctl">
+                <div class="name">Bước nhảy Vcore</div>
+                <div class="desc">Chọn độ mịn khi bấm + / − cho Vcore.</div>
+                <div class="row"><div class="seg" id="vstepSeg"><button data-vs="0.005">0.005V</button><button data-vs="0.01" class="on">0.01V</button></div></div>
+              </div>
+            </div>
+
+            <div class="card mb">
+              <h3>GPU — <span id="ocGpuName">--</span></h3>
+              <div id="ctlGpu"></div>
+            </div>
+
+            <div class="card mb">
+              <h3>RAM — <span id="ocRamName">--</span></h3>
+              <div id="ctlRam"></div>
+            </div>
+
+            <div class="card">
+              <h3>Thông số trực tiếp (tải nặng mô phỏng)</h3>
+              <div id="ocLive"></div>
+            </div>
+          </div>
+
+          <!-- Advisor -->
+          <aside class="card advisor" id="advisorPanel">
+            <h3>🧭 Gợi Ý Ép Xung</h3>
+            <div id="advWarnings"></div>
+            <div class="nextstep mt">
+              <div class="muted" style="margin-bottom:4px">BƯỚC TIẾP THEO NÊN LÀM</div>
+              <div id="advNextText">Đang phân tích…</div>
+              <div class="rowflex mt">
+                <button id="btnAdvRefresh">Gợi Ý Bước Tiếp Theo</button>
+                <button id="btnAdvApply" class="primary">Áp Dụng Gợi Ý</button>
+              </div>
+            </div>
+            <div class="mt">
+              <div class="muted" style="margin-bottom:5px">PRESET NHANH</div>
+              <div class="rowflex">
+                <button data-preset="safe">🟢 An Toàn</button>
+                <button data-preset="balanced">🟡 Cân Bằng</button>
+                <button data-preset="extreme">🔴 Cực Hạn</button>
+              </div>
+            </div>
+            <div class="mt" id="advCrash" style="display:none">
+              <h3 style="color:var(--red)">Phân tích lần crash gần nhất</h3>
+              <div id="advCrashText" style="font-size:13.5px"></div>
+            </div>
+            <div class="mt">
+              <h3>Hướng dẫn tân thủ — 5 bước ép xung lần đầu</h3>
+              <ol class="guide" id="guideSteps">
+                <li data-g="raise">Tăng Multiplier +1 (khoảng +100 MHz), giữ nguyên Vcore.</li>
+                <li data-g="test1">Chạy Stress Test 10 giây để kiểm tra ổn định.</li>
+                <li data-g="volt">Nếu lỗi/crash: tăng Vcore +0.01V. Nếu ổn: quay lại bước 1.</li>
+                <li data-g="test2">Chạy Stress Test 30–60 giây để xác nhận ổn định lâu dài.</li>
+                <li data-g="bench">Chạy Benchmark để ghi điểm và kiếm tiền nâng cấp.</li>
+              </ol>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ================= STRESS ================= -->
+      <section class="tab" id="tab-stress">
+        <h2>Stress Test — kiểm tra độ ổn định</h2>
+        <div class="grid" style="grid-template-columns:minmax(0,1fr) 300px;align-items:start" id="stressGrid">
+          <div class="card">
+            <div class="rowflex mb">
+              <span class="muted">Thời lượng:</span>
+              <div class="seg" id="stressDurSeg">
+                <button data-dur="10" class="on">10 giây</button>
+                <button data-dur="30">30 giây</button>
+                <button data-dur="60">60 giây</button>
+              </div>
+              <button id="btnStressStart" class="primary">▶ Bắt đầu Stress Test</button>
+              <button id="btnStressStop" class="danger" disabled>■ Dừng</button>
+            </div>
+            <div class="prog mb"><i id="stressProg"></i></div>
+            <canvas id="chart" width="900" height="230"></canvas>
+            <div class="legend">
+              <span><i style="background:#ff5252"></i>Nhiệt CPU (°C)</span>
+              <span><i style="background:#38d6e8"></i>Xung (MHz)</span>
+              <span><i style="background:#ffb000"></i>Vcore thực (V)</span>
+              <span><i style="background:#3ddc84"></i>Công suất (W)</span>
+            </div>
+            <div class="grid g-dash mt">
+              <div class="card flat gauge"><div class="lbl">Thời gian</div><div class="val" id="sTime" style="font-size:20px">0.0s</div></div>
+              <div class="card flat gauge"><div class="lbl">Nhiệt CPU</div><div class="val" id="sTemp" style="font-size:20px">--</div></div>
+              <div class="card flat gauge"><div class="lbl">Xung thực</div><div class="val" id="sClock" style="font-size:20px">--</div></div>
+              <div class="card flat gauge"><div class="lbl">Vcore thực</div><div class="val" id="sV" style="font-size:20px">--</div></div>
+              <div class="card flat gauge"><div class="lbl">Công suất CPU</div><div class="val" id="sPow" style="font-size:20px">--</div></div>
+              <div class="card flat gauge"><div class="lbl">Trạng thái</div><div class="val" id="sStatus" style="font-size:20px">Sẵn sàng</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Nhật ký kiểm tra</h3>
+            <ul class="log" id="stressLog"><li>Chọn thời lượng rồi bấm <b>Bắt đầu</b>. Volt thiếu, quá nhiệt hoặc vượt Power Limit đều có thể gây crash.</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= BENCH ================= -->
+      <section class="tab" id="tab-bench">
+        <h2>Benchmark — chấm điểm hiệu năng</h2>
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start">
+          <div class="card">
+            <p class="muted" style="margin-top:0">Điểm tính từ xung CPU hiệu dụng, xung GPU, tốc độ RAM và mức throttle nhiệt tại thời điểm chạy. Vượt kỷ lục cá nhân sẽ nhận thưởng tiền theo điểm tăng thêm, mọi lần chạy đều nhận XP.</p>
+            <button id="btnBench" class="primary" style="font-size:16px;padding:10px 22px">▶ Chạy Benchmark</button>
+            <div class="prog mt"><i id="benchProg"></i></div>
+            <div id="benchLive" class="mt" style="font-family:var(--mono);font-size:13.5px;color:var(--mut)">Chưa chạy.</div>
+            <div id="benchResult" class="mt" style="display:none">
+              <div class="muted">TỔNG ĐIỂM</div>
+              <div class="bigscore" id="benchScore">0</div>
+              <div id="benchBreak"></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Lịch sử &amp; kỷ lục</h3>
+            <div class="kv"><span>Kỷ lục cá nhân</span><b id="bBest">0 điểm</b></div>
+            <div class="kv"><span>Số lần benchmark</span><b id="bCount">0</b></div>
+            <div class="kv"><span>FPS ước tính hiện tại</span><b id="bFps">--</b></div>
+            <ul class="log mt" id="benchHist"><li>Chưa có kết quả nào.</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SHOP ================= -->
+      <section class="tab" id="tab-shop">
+        <h2>Cửa hàng linh kiện</h2>
+        <div class="card mb" id="shopAdvice"></div>
+        <div class="rowflex mb">
+          <div class="seg" id="shopCats">
+            <button data-cat="cpu" class="on">CPU</button>
+            <button data-cat="gpu">GPU</button>
+            <button data-cat="ram">RAM</button>
+            <button data-cat="board">Mainboard</button>
+            <button data-cat="psu">Nguồn PSU</button>
+            <button data-cat="cooler">Tản nhiệt</button>
+          </div>
+        </div>
+        <div class="shopgrid" id="shopGrid"></div>
+      </section>
+
+      <!-- ================= INVENTORY ================= -->
+      <section class="tab" id="tab-inv">
+        <h2>Kho linh kiện</h2>
+        <p class="muted">Lắp linh kiện đã mua vào máy. CPU mới mua sẽ có chất lượng silicon ngẫu nhiên (70–100) — chạy Benchmark một lần để kiểm tra binning và biết chất lượng thật.</p>
+        <div id="invList"></div>
+      </section>
+
+      <!-- ================= MISSIONS ================= -->
+      <section class="tab" id="tab-missions">
+        <h2>Nhiệm vụ &amp; giải đấu</h2>
+        <div class="grid" id="missionList" style="grid-template-columns:1fr"></div>
+      </section>
+
+      <!-- ================= ACHIEVEMENTS ================= -->
+      <section class="tab" id="tab-ach">
+        <h2>Thành tích</h2>
+        <div class="grid" id="achGrid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))"></div>
+      </section>
+    </main>
+
+    <!-- ================= BSOD ================= -->
+    <div class="overlay" id="bsod">
+      <div class="box">
+        <div class="face">:(</div>
+        <p style="font-size:17px">Máy tính của bạn gặp sự cố và cần khởi động lại. Hệ thống đang thu thập thông tin lỗi…</p>
+        <p id="bsodCode" style="font-size:15px">Stop code: WHEA_UNCORRECTABLE_ERROR</p>
+        <p id="bsodText" style="font-size:14px;line-height:1.6"></p>
+        <div class="rowflex">
+          <button id="btnBsodFix" class="fix">Áp dụng cách sửa gợi ý</button>
+          <button id="btnBsodClose">Khởi động lại (giữ nguyên cài đặt)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= CONFIRM MODAL ================= -->
+    <div class="overlay" id="modalWrap">
+      <div class="box">
+        <h3 id="modalTitle" style="color:#fff;font-size:17px">Xác nhận</h3>
+        <p id="modalText"></p>
+        <div class="rowflex" style="justify-content:flex-end">
+          <button id="modalCancel">Hủy</button>
+          <button id="modalOk" class="danger">Đồng ý</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toasts"></div>
+    <script>
+    'use strict';
+    /* ============================================================
+       GAME GIẢ LẬP ÉP XUNG — engine mô phỏng theo nguyên lý thật
+       P = TDP × (f/f₀) × (V/V₀)² ;  T = Tphòng + P × hệ số tản
+       ============================================================ */
+    const AMBIENT = 25, TJMAX = 100;
+    const SAVE_KEY = 'oc-sim-save-v1';
+    const $ = id => document.getElementById(id);
+    const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+    const fmt = n => Math.round(n).toLocaleString('vi-VN') + ' ₫';
+    const f2 = n => (Math.round(n*100)/100).toFixed(2);
+    const f3 = n => (Math.round(n*1000)/1000).toFixed(3);
+
+    /* ---------------- Danh mục linh kiện ---------------- */
+    const CATALOG = {
+      cpu: [
+        { id:'i3-10100f', name:'Intel Core i3-10100F', price:1900000, lvl:1, baseFreq:3600, baseV:1.08, tdp:65,  baseScore:2600, note:'CPU khởi đầu, 4 nhân 8 luồng.' },
+        { id:'r5-5600',   name:'AMD Ryzen 5 5600',     price:3400000, lvl:2, baseFreq:3700, baseV:1.12, tdp:65,  baseScore:3400, note:'6 nhân, hiệu năng/giá rất tốt.' },
+        { id:'i5-12600k', name:'Intel Core i5-12600K', price:6500000, lvl:3, baseFreq:3700, baseV:1.15, tdp:125, baseScore:4600, note:'Hậu tố K — sinh ra để ép xung.' },
+        { id:'r7-7700x',  name:'AMD Ryzen 7 7700X',    price:8900000, lvl:4, baseFreq:4500, baseV:1.18, tdp:105, baseScore:5600, note:'Zen 4, xung gốc đã rất cao.' },
+        { id:'i7-13700k', name:'Intel Core i7-13700K', price:10500000,lvl:5, baseFreq:4200, baseV:1.20, tdp:125, baseScore:6600, note:'16 nhân, ăn điện mạnh khi ép.' },
+        { id:'r9-7950x',  name:'AMD Ryzen 9 7950X',    price:13900000,lvl:6, baseFreq:4500, baseV:1.20, tdp:170, baseScore:7800, note:'16 nhân Zen 4, TDP 170W.' },
+        { id:'i9-14900k', name:'Intel Core i9-14900K', price:14500000,lvl:7, baseFreq:4400, baseV:1.22, tdp:125, baseScore:8600, note:'Đầu bảng cho dân ép xung.' },
+      ],
+      gpu: [
+        { id:'gt1030',  name:'NVIDIA GT 1030',        price:1500000, lvl:1, core:1227, mem:6000,  tdp:30,  baseV:1.00, baseScore:700,  note:'GPU khởi đầu, yếu nhưng mát.' },
+        { id:'gtx1660s',name:'NVIDIA GTX 1660 Super', price:5500000, lvl:2, core:1785, mem:14000, tdp:125, baseV:1.02, baseScore:2100, note:'Ngôi sao 1080p một thời.' },
+        { id:'rtx3060', name:'NVIDIA RTX 3060',       price:8500000, lvl:3, core:1777, mem:15000, tdp:170, baseV:1.03, baseScore:3000, note:'12GB VRAM, ép mem rất đã.' },
+        { id:'rtx4070', name:'NVIDIA RTX 4070',       price:16000000,lvl:5, core:2475, mem:21000, tdp:200, baseV:1.05, baseScore:5200, note:'Hiệu quả điện năng cao.' },
+        { id:'rtx4090', name:'NVIDIA RTX 4090',       price:42000000,lvl:7, core:2520, mem:21000, tdp:450, baseV:1.05, baseScore:9500, note:'Quái vật 450W — cần PSU khỏe.' },
+      ],
+      ram: [
+        { id:'d4-2666', name:'DDR4 8GB 2666MHz CL19',  price:600000,  lvl:1, freq:2666, cl:19, baseV:1.20, ddr5:false, note:'RAM khởi đầu.' },
+        { id:'d4-3200', name:'DDR4 16GB 3200MHz CL16', price:1100000, lvl:2, freq:3200, cl:16, baseV:1.35, ddr5:false, note:'Chuẩn phổ thông, ép lên 3600 dễ.' },
+        { id:'d4-3600', name:'DDR4 32GB 3600MHz CL16', price:2400000, lvl:3, freq:3600, cl:16, baseV:1.35, ddr5:false, note:'Dung lượng lớn, chip nhớ tốt.' },
+        { id:'d5-6000', name:'DDR5 32GB 6000MHz CL30', price:3800000, lvl:4, freq:6000, cl:30, baseV:1.35, ddr5:true,  note:'DDR5 chịu volt tới 1.45V.' },
+        { id:'d5-7200', name:'DDR5 32GB 7200MHz CL34', price:5500000, lvl:6, freq:7200, cl:34, baseV:1.40, ddr5:true,  note:'Kit tốc độ cao cho benchmark.' },
+      ],
+      board: [
+        { id:'h510m', name:'Mainboard H510M',   price:1400000, lvl:1, maxV:1.30, droop:1.25, maxBclk:103, note:'VRM yếu, giới hạn Vcore 1.30V, Vdroop lớn.' },
+        { id:'b660m', name:'Mainboard B660M',   price:2600000, lvl:2, maxV:1.40, droop:1.00, maxBclk:105, note:'VRM khá, Vdroop trung bình.' },
+        { id:'z690',  name:'Mainboard Z690',    price:5200000, lvl:4, maxV:1.50, droop:0.85, maxBclk:110, note:'Dòng Z chuyên ép xung.' },
+        { id:'x670e', name:'Mainboard X670E',   price:8900000, lvl:6, maxV:1.55, droop:0.75, maxBclk:112, note:'VRM mạnh, cấp điện rất ổn định.' },
+        { id:'z790apex', name:'Mainboard Z790 Apex', price:13500000, lvl:7, maxV:1.60, droop:0.65, maxBclk:115, note:'Bo mạch thi đấu, Vdroop cực thấp.' },
+      ],
+      psu: [
+        { id:'psu450',  name:'PSU 450W',         price:700000,  lvl:1, watts:450,  note:'Đủ cho cấu hình khởi đầu.' },
+        { id:'psu650',  name:'PSU 650W Bronze',  price:1200000, lvl:2, watts:650,  note:'Nâng cấp an toàn đầu tiên.' },
+        { id:'psu850',  name:'PSU 850W Gold',    price:2200000, lvl:3, watts:850,  note:'Cho GPU tầm trung–cao.' },
+        { id:'psu1000', name:'PSU 1000W Gold',   price:3400000, lvl:5, watts:1000, note:'Dư dả cho ép xung mạnh.' },
+        { id:'psu1200', name:'PSU 1200W Platinum', price:4800000, lvl:6, watts:1200, note:'Cho cấu hình cực hạn + LN2.' },
+      ],
+      cooler: [
+        { id:'stock',  name:'Tản nhiệt stock theo CPU', price:0,       lvl:1, coeff:0.55, base:25,  note:'Hệ số tản 0.55 °C/W — chỉ đủ chạy gốc.' },
+        { id:'tower4', name:'Tản khí tháp 4 ống đồng',   price:450000,  lvl:1, coeff:0.38, base:25,  note:'Hệ số tản 0.38 °C/W.' },
+        { id:'d15',    name:'Tản khí cao cấp 2 tháp',    price:1600000, lvl:2, coeff:0.30, base:25,  note:'Hệ số tản 0.30 °C/W — vua tản khí.' },
+        { id:'aio240', name:'AIO 240mm',                 price:1900000, lvl:3, coeff:0.26, base:25,  note:'Hệ số tản 0.26 °C/W.' },
+        { id:'aio360', name:'AIO 360mm',                 price:2900000, lvl:4, coeff:0.21, base:25,  note:'Hệ số tản 0.21 °C/W.' },
+        { id:'custom', name:'Custom Loop nước',          price:6500000, lvl:5, coeff:0.15, base:25,  note:'Hệ số tản 0.15 °C/W.' },
+        { id:'ln2',    name:'LN2 Pot (nitơ lỏng)',       price:4000000, lvl:6, coeff:0.06, base:-60, note:'Nhiệt độ bắt đầu −60°C. Cho kỷ lục thế giới.' },
+      ],
+    };
+    const CATNAME = { cpu:'CPU', gpu:'GPU', ram:'RAM', board:'Mainboard', psu:'PSU', cooler:'Tản nhiệt' };
+    const RANKS = ['Nghiệp Dư','Người Mới','Tay Nghề','Chuyên Gia','Bậc Thầy','Huyền Thoại Ép Xung'];
+    const rankOf = lvl => RANKS[clamp(Math.ceil(lvl/2)-1 + (lvl>=2?0:0), 0, RANKS.length-1)] && RANKS[Math.min(RANKS.length-1, Math.floor((lvl-1)/1.5))];
+    const xpNeed = lvl => lvl * 150; // XP tích lũy để đạt cấp lvl+1
+
+    /* ---------------- Trạng thái game ---------------- */
+    let uidSeq = 1;
+    function mkInstance(cat, itemId){
+      const inst = { uid: uidSeq++, cat, itemId, durability: 100, broken:false };
+      if (cat === 'cpu'){ inst.silicon = 70 + Math.floor(Math.random()*31); inst.revealed = false; }
+      return inst;
+    }
+    function defaultOC(cpuItem, ramItem){
+      return {
+        mult: Math.round(cpuItem.baseFreq/100), bclk: 100, vcore: cpuItem.baseV, llc: 3,
+        pl1: Math.round(cpuItem.tdp*1.4), pl2: Math.round(cpuItem.tdp*1.8),
+        gpuCoreOff: 0, gpuMemOff: 0, gpuPL: 100, gpuVolt: 1.00, fan: 60,
+        ramFreq: ramItem.freq, ramCL: ramItem.cl, ramVolt: ramItem.baseV,
+      };
+    }
+    function newGame(){
+      uidSeq = 1;
+      const inv = [ mkInstance('cpu','i3-10100f'), mkInstance('gpu','gt1030'), mkInstance('ram','d4-2666'),
+                    mkInstance('board','h510m'), mkInstance('psu','psu450'), mkInstance('cooler','stock') ];
+      const eq = {}; inv.forEach(i => eq[i.cat] = i.uid);
+      const cpuItem = itemOf('cpu','i3-10100f'), ramItem = itemOf('ram','d4-2666');
+      return {
+        money: 2000000, xp: 0, bestScore: 0, sound: true,
+        inventory: inv, equipped: eq,
+        oc: defaultOC(cpuItem, ramItem),
+        claimedMissions: [], achievements: [],
+        stats: { benches:0, stressPass:0, stressRuns:0, crashes:0, maxCpuFreq:0, maxStressDur:0, thermalShutdowns:0 },
+        flags: { raisedClock:false, raisedVolt:false, passed10:false, passedLong:false },
+        lastCrash: null, benchHist: [],
+      };
+    }
+    function itemOf(cat, id){ return CATALOG[cat].find(i => i.id === id); }
+    function instOf(uid){ return S.inventory.find(i => i.uid === uid); }
+    function eqInst(cat){ return instOf(S.equipped[cat]); }
+    function eqItem(cat){ const i = eqInst(cat); return i ? itemOf(cat, i.itemId) : null; }
+    function levelOf(xp){ let l = 1; while (xp >= xpNeed(l)) l++; return l; }
+
+    let S = newGame();
+    /* Nhiệt độ mô phỏng theo thời gian thực */
+    const sim = { cpuTemp: 34, gpuTemp: 33, activity: 'idle', stress: null, bench: null };
+
+    /* Volt thực cần cho 1 mức xung: ở xung gốc, CPU luôn ổn định ở Vcore gốc
+       (nhà sản xuất đã binning theo silicon). Silicon chỉ ảnh hưởng độ dốc
+       khi ép VƯỢT xung gốc: silicon xấu cần volt tăng nhanh hơn nhiều. */
+    function reqVoltage(cpuItem, silicon, freqMHz, bclk){
+      const ratio = freqMHz / cpuItem.baseFreq;
+      const d = ratio - 1;
+      let f;
+      if (d >= 0) f = 0.92 + 0.9 * d + 0.65 * d * d;
+      else f = Math.max(0.72, 0.92 + 0.5 * d);
+      const adj = d > 0 ? 1 + d * ((100 - silicon) / 30 * 0.9 - 0.15) : 1;
+      let v = cpuItem.baseV * f * adj;
+      if (bclk > 100) v *= 1 + (bclk - 100) * 0.02; // BCLK kéo cả bus → cần thêm volt
+      return v;
+    }
+
+    /* ============================================================
+       ENGINE VẬT LÝ
+       load: 0 = idle, 1 = tải nặng (stress/benchmark)
+       ============================================================ */
+    function compute(load){
+      const cpu = eqItem('cpu'), gpu = eqItem('gpu'), ram = eqItem('ram'),
+            board = eqItem('board'), psu = eqItem('psu'), cooler = eqItem('cooler');
+      const cpuInst = eqInst('cpu');
+      const oc = S.oc;
+      const out = { cpu, gpu, ram, board, psu, cooler, load };
+
+      /* --- CPU --- */
+      const freqSet = oc.mult * oc.bclk;                       // MHz
+      const freqRatio = freqSet / cpu.baseFreq;
+      const silicon = cpuInst ? cpuInst.silicon : 85;
+      const siliconFactor = freqRatio > 1 ? 1 + (freqRatio - 1) * ((100 - silicon) / 30 * 0.9 - 0.15) : 1;
+      const reqV = reqVoltage(cpu, silicon, freqSet, oc.bclk);
+
+      /* Vdroop: tụt volt khi tải, LLC bù lại; board VRM yếu tụt nhiều hơn */
+      const droopFull = 0.075 * board.droop * (1 - (oc.llc - 1) * 0.18);
+      const droop = droopFull * (0.25 + 0.75 * load);
+      const vReal = Math.max(0.5, oc.vcore - droop);
+      const overshoot = droopFull * 0.55 * (oc.llc / 5);       // vọt volt khi xả tải ở LLC cao
+
+      /* Công suất theo công thức thật, LLC cao tốn thêm điện */
+      const llcHeat = 1 + (oc.llc - 3) * 0.018;
+      let cpuPower = cpu.tdp * freqRatio * Math.pow(vReal / cpu.baseV, 2) * llcHeat * (0.12 + 0.88 * load);
+
+      /* Power Limit: PL2 cho tải ngắn, PL1 cho tải dài */
+      const plActive = (sim.activity === 'stress' && sim.stress && sim.stress.elapsed > 5) || (sim.activity === 'bench' && sim.bench && sim.bench.elapsed > 3) ? oc.pl1 : oc.pl2;
+      let plFactor = 1, plLimited = false;
+      if (load > 0.5 && cpuPower > plActive){ plFactor = Math.pow(plActive / cpuPower, 0.85); plLimited = true; cpuPower = plActive + (cpuPower - plActive) * 0.04; }
+      let freqEff = freqSet * plFactor;
+
+      /* Nhiệt độ mục tiêu theo tản nhiệt */
+      const cpuTempTarget = cooler.base + cpuPower * cooler.coeff * (cooler.id === 'ln2' ? 1 : 1);
+      const tempForThrottle = load > 0.5 ? Math.max(sim.cpuTemp, Math.min(cpuTempTarget, sim.cpuTemp + 8)) : sim.cpuTemp;
+      let throttle = 1, throttleNote = '';
+      const tNow = load > 0.5 ? cpuTempTarget : sim.cpuTemp;
+      if (tNow >= TJMAX){ throttle = 0; throttleNote = 'Quá nhiệt — tự ngắt bảo vệ!'; }
+      else if (tNow > 95){ throttle = Math.max(0.55, 1 - (tNow - 85) * 0.012); throttleNote = 'Throttle mạnh do nhiệt'; }
+      else if (tNow > 85){ throttle = 1 - (tNow - 85) * 0.004; throttleNote = 'Bắt đầu throttle nhẹ'; }
+      freqEff *= throttle;
+
+      const marginCPU = vReal / reqV;
+
+      /* --- GPU --- */
+      const gpuCore = gpu.core + oc.gpuCoreOff, gpuMem = gpu.mem + oc.gpuMemOff;
+      const gpuRatio = gpuCore / gpu.core;
+      const gpuReqV = gpu.baseV * Math.pow(Math.max(gpuRatio, 0.7), 2.1) * (1 + Math.max(0, oc.gpuMemOff) / 20000);
+      const gpuPLCap = gpu.tdp * oc.gpuPL / 100;
+      let gpuPower = gpu.tdp * gpuRatio * Math.pow(oc.gpuVolt / gpu.baseV, 2) * (0.15 + 0.85 * load);
+      let gpuPlFactor = 1;
+      if (load > 0.5 && gpuPower > gpuPLCap){ gpuPlFactor = Math.pow(gpuPLCap / gpuPower, 0.8); gpuPower = gpuPLCap; }
+      const gpuCoreEff = gpuCore * gpuPlFactor;
+      const fanCoeff = 0.52 - oc.fan * 0.0032;                 // quạt nhanh → mát hơn
+      const gpuTempTarget = 25 + gpuPower * fanCoeff;
+      const marginGPU = oc.gpuVolt / gpuReqV;
+
+      /* --- RAM --- */
+      const ramFreqEff = Math.round(oc.ramFreq * oc.bclk / 100);
+      const ramRatio = ramFreqEff / ram.freq;
+      const ramReqV = ram.baseV * Math.pow(Math.max(ramRatio, 0.8), 1.5) * Math.pow(ram.cl / Math.max(oc.ramCL, 8), 0.55);
+      const marginRAM = oc.ramVolt / ramReqV;
+      const ramPower = 6 * ramRatio * Math.pow(oc.ramVolt / ram.baseV, 2);
+
+      /* --- Tổng hệ thống & PSU --- */
+      const totalPower = cpuPower + gpuPower + ramPower + 45 * (0.4 + 0.6 * load);
+      const psuLoad = totalPower / psu.watts;
+      const margin = Math.min(marginCPU, marginGPU * 1.04, marginRAM * 1.02) * (psuLoad > 0.95 ? 0.9 : 1);
+
+      /* --- Điểm & FPS ước tính --- */
+      const cpuScore = cpu.baseScore * (freqEff / cpu.baseFreq);
+      const gpuScore = gpu.baseScore * (gpuCoreEff / gpu.core) * (1 + (gpuMem - gpu.mem) / gpu.mem * 0.6);
+      const ramScore = 500 * ramRatio * Math.pow(ram.cl / Math.max(oc.ramCL, 8), 0.3);
+      const score = Math.round((cpuScore + gpuScore + ramScore) * (load > 0.5 ? throttle : 1));
+      const fps = Math.round(18 + gpuScore / 55 + cpuScore / 320);
+
+      Object.assign(out, { freqSet, freqRatio, reqV, silicon, siliconFactor, droop, vReal, overshoot,
+        cpuPower, plActive, plLimited, plFactor, freqEff, cpuTempTarget, throttle, throttleNote,
+        marginCPU, gpuCore, gpuMem, gpuCoreEff, gpuPower, gpuTempTarget, marginGPU,
+        ramFreqEff, marginRAM, ramPower, totalPower, psuLoad, margin, cpuScore, gpuScore, ramScore, score, fps });
+      return out;
+    }
+
+    /* Mức cảnh báo tổng thể cho 1 thông số */
+    function vcoreZone(v){ return v > 1.45 ? 'r' : v > 1.35 ? 'y' : 'g'; }
+    function tempZone(t){ return t >= 95 ? 'r' : t > 85 ? 'y' : 'g'; }
+
+    /* ============================================================
+       ÂM THANH (WebAudio, không cần file)
+       ============================================================ */
+    let audioCtx = null;
+    function beep(freq, dur, type, gain){
+      if (!S.sound) return;
+      try{
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type || 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(gain || 0.06, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + dur);
+      }catch(e){ /* trình duyệt chặn audio — bỏ qua */ }
+    }
+    const sndClick = () => beep(660, .05, 'square', .02);
+    const sndOk = () => { beep(740, .12, 'sine', .06); setTimeout(() => beep(990, .18, 'sine', .06), 110); };
+    const sndErr = () => { beep(160, .35, 'sawtooth', .08); setTimeout(() => beep(110, .45, 'sawtooth', .08), 120); };
+    const sndCoin = () => { beep(1180, .08, 'square', .05); setTimeout(() => beep(1560, .22, 'square', .05), 80); };
+
+    /* ============================================================
+       TIỆN ÍCH UI
+       ============================================================ */
+    function toast(msg, cls){
+      const t = document.createElement('div'); t.className = 'toast' + (cls ? ' ' + cls : '');
+      t.textContent = msg; $('toasts').appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .4s'; setTimeout(() => t.remove(), 420); }, 3400);
+    }
+    let modalCb = null;
+    function askConfirm(title, text, cb){
+      $('modalTitle').textContent = title; $('modalText').textContent = text;
+      $('modalWrap').classList.add('on'); modalCb = cb;
+    }
+    $('modalCancel').addEventListener('click', () => { $('modalWrap').classList.remove('on'); modalCb = null; });
+    $('modalOk').addEventListener('click', () => { $('modalWrap').classList.remove('on'); if (modalCb) modalCb(); modalCb = null; });
+
+    function gainXP(n){
+      const before = levelOf(S.xp); S.xp += n; const after = levelOf(S.xp);
+      if (after > before){ toast('🎉 Lên cấp ' + after + ' — Danh hiệu: ' + rankOf(after) + '! Mở khóa linh kiện mới trong Cửa Hàng.', 'gold'); sndCoin(); }
+    }
+
+    /* ============================================================
+       LƯU / TẢI
+       ============================================================ */
+    function saveGame(silent){
+      try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); if (!silent) toast('Đã lưu game vào trình duyệt này.'); }
+      catch(e){ if (!silent) toast('Không lưu được: trình duyệt đã chặn localStorage.', 'err'); }
+    }
+    function loadGame(){
+      try{
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw){ toast('Chưa có bản lưu nào.', 'err'); return false; }
+        const data = JSON.parse(raw);
+        if (!data || !data.inventory || !data.oc) throw new Error('bad');
+        S = data; uidSeq = Math.max(0, ...S.inventory.map(i => i.uid)) + 1;
+        sim.cpuTemp = 34; sim.gpuTemp = 33; sim.activity = 'idle'; sim.stress = null; sim.bench = null;
+        refreshAll(); toast('Đã tải lại bản lưu.'); return true;
+      }catch(e){ toast('Bản lưu bị lỗi, không tải được.', 'err'); return false; }
+    }
+    $('btnSave').addEventListener('click', () => { saveGame(); sndClick(); });
+    $('btnLoad').addEventListener('click', () => { loadGame(); sndClick(); });
+    $('btnNew').addEventListener('click', () => askConfirm('Chơi mới?', 'Toàn bộ tiến trình hiện tại (tiền, linh kiện, cấp độ) sẽ bị xóa và bắt đầu lại từ đầu.', () => {
+      S = newGame(); localStorage.removeItem(SAVE_KEY); sim.cpuTemp = 34; sim.gpuTemp = 33; sim.activity = 'idle';
+      refreshAll(); toast('Đã bắt đầu game mới. Chúc ép xung vui vẻ!');
+    }));
+    $('btnSound').addEventListener('click', () => { S.sound = !S.sound; $('btnSound').textContent = S.sound ? '🔊 Âm thanh' : '🔇 Đã tắt tiếng'; if (S.sound) sndClick(); });
+
+    /* ============================================================
+       TABS
+       ============================================================ */
+    document.querySelectorAll('#tabNav button').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#tabNav button').forEach(x => x.classList.toggle('on', x === b));
+      document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === 'tab-' + b.dataset.tab));
+      sndClick();
+      if (b.dataset.tab === 'shop') renderShopAdvice();
+      if (b.dataset.tab === 'missions') renderMissions();
+      if (b.dataset.tab === 'ach') renderAch();
+      if (b.dataset.tab === 'inv') renderInv();
+    }));
+    function gotoTab(name){
+      document.querySelectorAll('#tabNav button').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
+      document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === 'tab-' + name));
+    }
+
+    /* ============================================================
+       ĐIỀU KHIỂN ÉP XUNG (stepper dùng chung)
+       ============================================================ */
+    let vcoreStep = 0.01;
+    const CONTROLS = [
+      { box:'ctlCpu', key:'mult',  name:'CPU Multiplier (Hệ số nhân)', fmt:v => '×' + v, step:1, min:8, max:70,
+        desc:'Tăng Multiplier chỉ tăng xung CPU: Xung = Multiplier × BCLK. Cách ép xung an toàn nhất.' },
+      { box:'ctlCpu', key:'bclk',  name:'BCLK (Xung nền)', fmt:v => v + ' MHz', step:1, min:95, max:115,
+        desc:'Tăng BCLK kéo theo cả xung CPU, RAM và bus PCIe — hiệu quả cao nhưng rủi ro mất ổn định lớn hơn.' },
+      { box:'ctlCpu', key:'vcore', name:'Vcore (Điện áp CPU)', fmt:v => f3(v) + ' V', step:() => vcoreStep, min:0.80, max:1.60, round:3,
+        desc:'Volt nuôi CPU. Thiếu volt → crash; thừa volt → nóng và giảm tuổi thọ. An toàn < 1.35V, nguy hiểm > 1.45V.' },
+      { box:'ctlCpu', key:'pl2',   name:'Power Limit PL2 (ngắn hạn)', fmt:v => v + ' W', step:5, min:40, max:500,
+        desc:'Giới hạn công suất bùng nổ vài giây đầu khi tải nặng.' },
+      { box:'ctlCpu', key:'pl1',   name:'Power Limit PL1 (dài hạn)', fmt:v => v + ' W', step:5, min:40, max:500,
+        desc:'Giới hạn công suất duy trì. Vượt PL1 → xung bị bóp dù nhiệt còn thấp.' },
+      { box:'ctlGpu', key:'gpuCoreOff', name:'GPU Core Clock Offset', fmt:v => (v >= 0 ? '+' : '') + v + ' MHz', step:10, min:-200, max:400,
+        desc:'Cộng/trừ trực tiếp vào xung nhân GPU.' },
+      { box:'ctlGpu', key:'gpuMemOff',  name:'GPU Memory Clock Offset', fmt:v => (v >= 0 ? '+' : '') + v + ' MHz', step:50, min:-1000, max:3000,
+        desc:'Ép xung VRAM — tăng băng thông, điểm benchmark tăng theo.' },
+      { box:'ctlGpu', key:'gpuPL',  name:'GPU Power Limit', fmt:v => v + ' %', step:5, min:50, max:130,
+        desc:'Nới giới hạn điện cho GPU ăn nhiều điện hơn để giữ xung cao — đổi lại nóng hơn.' },
+      { box:'ctlGpu', key:'gpuVolt', name:'GPU Voltage', fmt:v => f3(v) + ' V', step:0.005, min:0.80, max:1.20, round:3,
+        desc:'Volt GPU. Cần tăng tương ứng khi đẩy Core Offset cao.' },
+      { box:'ctlGpu', key:'fan',    name:'Fan Curve — Tốc độ quạt GPU', fmt:v => v + ' %', step:5, min:20, max:100,
+        desc:'Quạt nhanh hơn → GPU mát hơn, giữ xung ổn định hơn.' },
+      { box:'ctlRam', key:'ramFreq', name:'RAM Frequency', fmt:v => v + ' MHz', step:100, min:2133, max:8400,
+        desc:'Xung RAM (còn nhân thêm theo BCLK). Cao hơn = nhanh hơn nhưng khó ổn định.' },
+      { box:'ctlRam', key:'ramCL',   name:'RAM Timing (CAS Latency)', fmt:v => 'CL' + v, step:1, min:10, max:46,
+        desc:'CL thấp = độ trễ thấp, hiệu năng cao nhưng cần nhiều volt hơn để ổn định.' },
+      { box:'ctlRam', key:'ramVolt', name:'RAM Voltage', fmt:v => f3(v) + ' V', step:0.01, min:1.10, max:1.60, round:3,
+        desc:'An toàn quanh 1.35V; DDR5 chịu được tới ~1.45V.' },
+    ];
+    function buildControls(){
+      ['ctlCpu','ctlGpu','ctlRam'].forEach(id => $(id).innerHTML = '');
+      CONTROLS.forEach(c => {
+        const div = document.createElement('div'); div.className = 'ctl';
+        div.innerHTML = '<div class="name">' + c.name + '</div><div class="desc">' + c.desc + '</div>' +
+          '<div class="row"><button class="step" data-k="' + c.key + '" data-d="-1">−</button>' +
+          '<div class="v" id="v-' + c.key + '">--</div>' +
+          '<button class="step" data-k="' + c.key + '" data-d="1">+</button></div>' +
+          '<div style="grid-column:1 / -1"><input type="range" id="r-' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + (typeof c.step === 'function' ? 0.005 : c.step) + '"></div>';
+        $(c.box).appendChild(div);
+      });
+      document.querySelectorAll('.ctl .step').forEach(b => b.addEventListener('click', () => {
+        const c = CONTROLS.find(x => x.key === b.dataset.k); const st = typeof c.step === 'function' ? c.step() : c.step;
+        setOC(c, S.oc[c.key] + st * Number(b.dataset.d)); sndClick();
+      }));
+      CONTROLS.forEach(c => $('r-' + c.key).addEventListener('input', e => setOC(c, Number(e.target.value), true)));
+      /* LLC */
+      const llc = $('llcSeg'); llc.innerHTML = '';
+      for (let i = 1; i <= 5; i++){ const b = document.createElement('button'); b.textContent = 'Mức ' + i; b.dataset.llc = i;
+        b.addEventListener('click', () => { S.oc.llc = i; refreshAll(); sndClick(); }); llc.appendChild(b); }
+      document.querySelectorAll('#vstepSeg button').forEach(b => b.addEventListener('click', () => {
+        vcoreStep = Number(b.dataset.vs);
+        document.querySelectorAll('#vstepSeg button').forEach(x => x.classList.toggle('on', x === b)); sndClick();
+      }));
+    }
+    function setOC(c, val, fromRange){
+      const board = eqItem('board');
+      let v = clamp(val, c.min, c.max);
+      if (c.key === 'vcore') v = Math.min(v, board.maxV);
+      if (c.key === 'bclk') v = Math.min(v, board.maxBclk);
+      if (c.round) v = Math.round(v * 1000) / 1000;
+      if (c.key === 'mult' || c.key === 'bclk' || c.key === 'ramCL') v = Math.round(v);
+      S.oc[c.key] = v;
+      if (c.key === 'mult' || c.key === 'bclk') S.flags.raisedClock = true;
+      if (c.key === 'vcore' && v > eqItem('cpu').baseV) S.flags.raisedVolt = true;
+      refreshOC();
+    }
+
+    /* ============================================================
+       RENDER — HUD + DASHBOARD
+       ============================================================ */
+    function meterColor(z){ return z === 'r' ? 'var(--red)' : z === 'y' ? 'var(--yellow)' : 'var(--green)'; }
+    function renderHUD(){
+      $('hudMoney').textContent = fmt(S.money);
+      const lvl = levelOf(S.xp);
+      $('hudLevel').textContent = lvl;
+      $('hudRank').textContent = rankOf(lvl);
+      const prevNeed = lvl > 1 ? xpNeed(lvl - 1) : 0, nextNeed = xpNeed(lvl);
+      $('hudXpFill').style.width = clamp((S.xp - prevNeed) / (nextNeed - prevNeed) * 100, 0, 100) + '%';
+      $('hudXpText').textContent = S.xp + ' / ' + nextNeed + ' XP';
+      $('btnSound').textContent = S.sound ? '🔊 Âm thanh' : '🔇 Đã tắt tiếng';
+    }
+    function renderDash(){
+      const c = compute(sim.activity === 'idle' ? 0.15 : 1);
+      const ct = sim.cpuTemp, gt = sim.gpuTemp;
+      $('dCpuTemp').innerHTML = Math.round(ct) + '<small> °C</small>';
+      const cb = $('dCpuTempBar'); cb.style.width = clamp(ct / TJMAX * 100, 0, 100) + '%'; cb.style.background = meterColor(tempZone(ct));
+      $('dCpuTempSub').textContent = ct > 85 ? '⚠ Trên 85°C — bắt đầu throttle!' : 'TjMax 100°C · Tản: ' + c.cooler.name;
+      $('dGpuTemp').innerHTML = Math.round(gt) + '<small> °C</small>';
+      const gb = $('dGpuTempBar'); gb.style.width = clamp(gt / 110 * 100, 0, 100) + '%'; gb.style.background = meterColor(tempZone(gt));
+      $('dGpuTempSub').textContent = 'Quạt ' + S.oc.fan + '% · Power Limit ' + S.oc.gpuPL + '%';
+      const loadNow = sim.activity === 'idle' ? 0.15 : 1;
+      const cl = compute(loadNow);
+      const cLoad = compute(1); // nguồn số duy nhất cho Vcore thực & độ ổn định khi tải nặng
+      $('dClock').innerHTML = Math.round(loadNow > 0.5 ? cl.freqEff : cl.freqSet) + '<small> MHz</small>';
+      $('dClockSub').textContent = 'Đặt: ' + cl.freqSet + ' MHz (×' + S.oc.mult + ' · BCLK ' + S.oc.bclk + ')' + (cl.plLimited && loadNow > 0.5 ? ' · ⚠ Bị bóp bởi Power Limit' : '');
+      $('dVcore').innerHTML = f3(S.oc.vcore) + ' / ' + f3(cLoad.vReal) + '<small> V</small>';
+      $('dVcoreSub').textContent = 'Thực khi tải nặng · Vdroop: −' + f3(cLoad.droop) + ' V · LLC mức ' + S.oc.llc + ' · Cần: ' + f3(cLoad.reqV) + ' V';
+      $('dPower').innerHTML = Math.round(cl.totalPower) + '<small> W</small>';
+      $('dPowerSub').textContent = 'PSU ' + cl.psu.watts + 'W — đang dùng ' + Math.round(cl.psuLoad * 100) + '%';
+      $('dFps').textContent = cl.fps;
+      $('dBest').textContent = S.bestScore.toLocaleString('vi-VN');
+      $('dBestSub').textContent = S.stats.benches ? 'Đã chạy ' + S.stats.benches + ' lần benchmark' : 'Chạy Benchmark để ghi kỷ lục';
+      const stabPct = clamp(Math.round(cLoad.margin * 100), 0, 130);
+      const stabEl = $('dStab');
+      stabEl.textContent = stabPct + '%';
+      stabEl.style.color = cLoad.margin >= 1 ? 'var(--green)' : cLoad.margin >= 0.95 ? 'var(--yellow)' : 'var(--red)';
+      $('dStabSub').textContent = cLoad.margin >= 1 ? 'Volt đủ khi tải nặng — kỳ vọng ổn định' : 'Volt THIẾU khi tải nặng — dễ crash';
+      /* Cấu hình */
+      const ci = eqInst('cpu');
+      $('dConfig').innerHTML =
+        kv('CPU', c.cpu.name + ' · Silicon: ' + (ci.revealed ? ci.silicon + '/100' : 'chưa rõ')) +
+        kv('GPU', c.gpu.name) + kv('RAM', c.ram.name) +
+        kv('Mainboard', c.board.name) + kv('PSU', c.psu.name) + kv('Tản nhiệt', c.cooler.name) +
+        kv('Xung RAM hiệu dụng', cl.ramFreqEff + ' MHz · CL' + S.oc.ramCL + ' · ' + f3(S.oc.ramVolt) + 'V');
+      /* Độ bền */
+      $('dDur').innerHTML = ['cpu','gpu','ram','board','psu','cooler'].map(cat => {
+        const i = eqInst(cat); if (!i) return '';
+        const d = Math.round(i.durability);
+        return '<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:13px"><span>' + CATNAME[cat] + (i.broken ? ' — <b class="bad">ĐÃ HỎNG</b>' : '') + '</span><b style="font-family:var(--mono)">' + d + '%</b></div>' +
+          '<div class="durbar"><i style="width:' + d + '%;background:' + (d > 50 ? 'var(--green)' : d > 25 ? 'var(--yellow)' : 'var(--red)') + '"></i></div></div>';
+      }).join('');
+      $('dWarnings').innerHTML = buildWarnings(compute(1)).map(w => '<div class="alert ' + w.z + '">' + w.t + '</div>').join('') || '<div class="alert g">Mọi thông số đều an toàn.</div>';
+    }
+    function kv(k, v){ return '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>'; }
+
+    /* ============================================================
+       CẢNH BÁO + GỢI Ý (advisor)
+       ============================================================ */
+    function buildWarnings(c){
+      const w = [];
+      const vz = vcoreZone(S.oc.vcore);
+      if (vz === 'r') w.push({ z:'r', t:'🔴 Vcore đang ' + f3(S.oc.vcore) + 'V — trên 1.45V: electromigration ăn mòn transistor, tuổi thọ CPU giảm rất nhanh.' });
+      else if (vz === 'y') w.push({ z:'y', t:'🟡 Vcore đang ' + f3(S.oc.vcore) + 'V — vùng 1.35–1.45V chỉ nên dùng ngắn hạn để benchmark, không nên chạy 24/7.' });
+      else w.push({ z:'g', t:'🟢 Vcore ' + f3(S.oc.vcore) + 'V nằm trong vùng an toàn (< 1.35V) cho dùng lâu dài.' });
+      const tz = tempZone(c.cpuTempTarget);
+      if (tz === 'r') w.push({ z:'r', t:'🔴 Nhiệt CPU khi tải nặng dự kiến ' + Math.round(c.cpuTempTarget) + '°C — chạm ngưỡng throttle mạnh/tự ngắt 100°C. Giảm xung hoặc nâng cấp tản nhiệt ngay.' });
+      else if (tz === 'y') w.push({ z:'y', t:'🟡 Nhiệt CPU dự kiến ' + Math.round(c.cpuTempTarget) + '°C — trên 85°C bắt đầu throttle, xung thực sẽ thấp hơn xung đặt.' });
+      else w.push({ z:'g', t:'🟢 Nhiệt CPU dự kiến ' + Math.round(c.cpuTempTarget) + '°C — mát, còn nhiều dư địa để ép tiếp.' });
+      if (c.marginCPU < 0.97) w.push({ z:'r', t:'🔴 Volt thiếu nghiêm trọng: Vcore thực ' + f3(c.vReal) + 'V < mức cần ' + f3(c.reqV) + 'V cho ' + c.freqSet + ' MHz. Chắc chắn crash khi stress test.' });
+      else if (c.marginCPU < 1) w.push({ z:'y', t:'🟡 Vcore thực ' + f3(c.vReal) + 'V hơi thấp so với mức cần ' + f3(c.reqV) + 'V — có thể lỗi khi stress lâu. Tăng Vcore +0.01V hoặc tăng LLC.' });
+      else if (c.marginCPU > 1.12) w.push({ z:'y', t:'🟡 Volt đang dư nhiều (' + f3(c.vReal) + 'V so với cần ' + f3(c.reqV) + 'V) — có thể giảm Vcore để mát hơn và bền hơn.' });
+      if (c.plLimited) w.push({ z:'y', t:'🟡 Đang bị bóp xung bởi Power Limit (' + c.plActive + 'W): CPU cần ' + Math.round(c.cpuPower / Math.max(c.plFactor, 0.01) * c.plFactor + (c.cpuPower - c.plActive)) + 'W. Tăng PL1/PL2 hoặc kiểm tra PSU.' });
+      if (c.psuLoad > 0.95) w.push({ z:'r', t:'🔴 PSU quá tải: hệ thống cần ~' + Math.round(c.totalPower) + 'W nhưng PSU chỉ ' + c.psu.watts + 'W — nguy cơ sập nguồn, hỏng linh kiện.' });
+      else if (c.psuLoad > 0.8) w.push({ z:'y', t:'🟡 PSU đang tải ' + Math.round(c.psuLoad * 100) + '% — gần giới hạn, nên nâng cấp PSU trước khi ép tiếp.' });
+      if (S.oc.bclk > 105) w.push({ z:'y', t:'🟡 BCLK ' + S.oc.bclk + ' MHz khá cao — bus PCIe/RAM bị kéo theo, dễ mất ổn định toàn hệ thống.' });
+      if (c.marginRAM < 1) w.push({ z:'y', t:'🟡 RAM có thể không ổn định: volt RAM ' + f3(S.oc.ramVolt) + 'V cho ' + c.ramFreqEff + 'MHz CL' + S.oc.ramCL + '. Tăng volt RAM hoặc nới CL.' });
+      if (c.marginGPU < 1) w.push({ z:'y', t:'🟡 GPU thiếu volt cho mức Core Offset hiện tại — dễ treo driver khi benchmark.' });
+      ['cpu','gpu','ram'].forEach(cat => { const i = eqInst(cat); if (i && i.broken) w.push({ z:'r', t:'🔴 ' + CATNAME[cat] + ' ĐÃ HỎNG — vào Kho Linh Kiện để sửa hoặc lắp món khác trước khi test.' }); });
+      return w;
+    }
+
+    /* Gợi ý bước tiếp theo: trả {text, apply()} */
+    let currentAdvice = null;
+    function computeAdvice(){
+      const c = compute(1);
+      const broken = ['cpu','gpu','ram','board','psu','cooler'].map(cat => eqInst(cat)).find(i => i && i.broken);
+      if (broken) return { text:'Linh kiện ' + CATNAME[broken.cat] + ' đã hỏng. Vào tab Kho Linh Kiện để sửa chữa rồi mới test tiếp được.', apply:null, applyLabel:null };
+      if (c.cpuTempTarget >= 95) return { text:'Nhiệt dự kiến ' + Math.round(c.cpuTempTarget) + '°C — quá nóng. Giảm Multiplier −1 (bớt 100 MHz) để hạ nhiệt ngay.', apply:() => setOC(CONTROLS[0], S.oc.mult - 1) };
+      if (c.marginCPU < 1){
+        if (S.oc.llc < 4 && c.droop > 0.04) return { text:'Vcore thực bị Vdroop kéo xuống còn ' + f3(c.vReal) + 'V (cần ' + f3(c.reqV) + 'V). Tăng LLC lên mức ' + (S.oc.llc + 1) + ' để bù Vdroop mà không cần thêm volt đặt.', apply:() => { S.oc.llc = Math.min(5, S.oc.llc + 1); refreshAll(); } };
+        return { text:'Thiếu volt cho ' + c.freqSet + ' MHz (thực ' + f3(c.vReal) + 'V / cần ' + f3(c.reqV) + 'V). Tăng Vcore +0.01V rồi stress test lại 10 giây.', apply:() => setOC(CONTROLS[2], S.oc.vcore + 0.01) };
+      }
+      if (c.plLimited) return { text:'Xung đang bị Power Limit ' + c.plActive + 'W bóp lại. Tăng PL1 và PL2 thêm 25W (nhớ kiểm tra PSU còn dư tải).', apply:() => { setOC(CONTROLS[4], S.oc.pl1 + 25); setOC(CONTROLS[3], S.oc.pl2 + 25); } };
+      if (c.marginRAM < 1) return { text:'RAM chưa ổn định ở ' + c.ramFreqEff + 'MHz CL' + S.oc.ramCL + '. Tăng volt RAM +0.02V.', apply:() => setOC(CONTROLS[12], S.oc.ramVolt + 0.02) };
+      if (c.marginGPU < 1) return { text:'GPU thiếu volt cho Core Offset +' + S.oc.gpuCoreOff + ' MHz. Tăng GPU Voltage +0.01V.', apply:() => setOC(CONTROLS[8], S.oc.gpuVolt + 0.01) };
+      if (c.cpuTempTarget <= 78 && c.marginCPU >= 1.02) return { text:'Mọi thứ đang ổn: nhiệt ' + Math.round(c.cpuTempTarget) + '°C, volt dư ' + Math.round((c.marginCPU - 1) * 100) + '%. Tăng Multiplier +1 (thêm ' + S.oc.bclk + ' MHz), giữ nguyên Vcore, rồi stress test 10 giây.', apply:() => setOC(CONTROLS[0], S.oc.mult + 1) };
+      if (c.marginCPU > 1.12 && c.cpuTempTarget > 78) return { text:'Volt đang dư thừa mà nhiệt lại cao — giảm Vcore −0.01V để mát hơn, xung giữ nguyên.', apply:() => setOC(CONTROLS[2], S.oc.vcore - 0.01) };
+      return { text:'Cấu hình đang cân bằng. Hãy chạy Stress Test 30 giây để xác nhận ổn định, sau đó Benchmark ghi điểm.', apply:() => { gotoTab('stress'); } };
+    }
+    function renderAdvisor(){
+      const c = compute(1);
+      $('advWarnings').innerHTML = buildWarnings(c).slice(0, 5).map(w => '<div class="alert ' + w.z + '">' + w.t + '</div>').join('');
+      currentAdvice = computeAdvice();
+      $('advNextText').innerHTML = '<b>Gợi ý:</b> ' + currentAdvice.text;
+      $('btnAdvApply').disabled = !currentAdvice.apply;
+      $('btnAdvApply').textContent = currentAdvice.apply ? 'Áp Dụng Gợi Ý' : 'Không có thao tác tự động';
+      /* Crash analysis */
+      if (S.lastCrash){
+        $('advCrash').style.display = 'block';
+        $('advCrashText').innerHTML = '<b>Nguyên nhân:</b> ' + S.lastCrash.cause + '<br><b>Cách sửa:</b> ' + S.lastCrash.fix;
+      } else $('advCrash').style.display = 'none';
+      /* Guide */
+      document.querySelectorAll('#guideSteps li').forEach(li => {
+        const g = li.dataset.g; let done = false;
+        if (g === 'raise') done = S.flags.raisedClock;
+        if (g === 'test1') done = S.flags.passed10 || S.stats.stressRuns > 0;
+        if (g === 'volt') done = S.flags.raisedVolt;
+        if (g === 'test2') done = S.flags.passedLong;
+        if (g === 'bench') done = S.stats.benches > 0;
+        li.classList.toggle('done', done);
+      });
+    }
+    $('btnAdvRefresh').addEventListener('click', () => { renderAdvisor(); toast('Đã phân tích lại theo thông số hiện tại.'); sndClick(); });
+    $('btnAdvApply').addEventListener('click', () => { if (currentAdvice && currentAdvice.apply){ currentAdvice.apply(); renderAdvisor(); toast('Đã áp dụng gợi ý.'); sndOk(); } });
+
+    /* Presets */
+    document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
+      const cpu = eqItem('cpu'), c = compute(1);
+      const baseMult = Math.round(cpu.baseFreq / 100);
+      if (b.dataset.preset === 'safe'){
+        S.oc.mult = baseMult + 2; S.oc.vcore = Math.round((cpu.baseV + 0.02) * 1000) / 1000; S.oc.llc = 3;
+        toast('Preset An Toàn: +' + (2 * S.oc.bclk) + ' MHz, Vcore ' + f3(S.oc.vcore) + 'V — mát và bền.');
+      } else if (b.dataset.preset === 'balanced'){
+        S.oc.mult = baseMult + 6;
+        const need = reqVoltage(cpu, c.silicon, S.oc.mult * S.oc.bclk, S.oc.bclk);
+        const droopEst = 0.075 * eqItem('board').droop * (1 - 3 * 0.18);
+        S.oc.vcore = clamp(Math.round((need * 1.03 + droopEst) * 200) / 200, cpu.baseV, 1.35); S.oc.llc = 4;
+        toast('Preset Cân Bằng: xung ' + (S.oc.mult * S.oc.bclk) + ' MHz, Vcore tính theo silicon của CPU bạn (' + f3(S.oc.vcore) + 'V).');
+      } else {
+        S.oc.mult = baseMult + 12;
+        const need = reqVoltage(cpu, c.silicon, S.oc.mult * S.oc.bclk, S.oc.bclk);
+        const droopEst = 0.075 * eqItem('board').droop * (1 - 4 * 0.18);
+        S.oc.vcore = clamp(Math.round((need * 1.07 + droopEst) * 200) / 200, cpu.baseV, Math.min(1.45, eqItem('board').maxV)); S.oc.llc = 5;
+        S.oc.pl1 = Math.max(S.oc.pl1, 300); S.oc.pl2 = Math.max(S.oc.pl2, 350);
+        toast('Preset Cực Hạn: xung ' + (S.oc.mult * 100) + ' MHz, LLC 5, PL nới tối đa. Theo dõi nhiệt độ sát sao!', 'gold');
+      }
+      S.flags.raisedClock = true; refreshAll(); sndOk();
+    }));
+
+    /* ============================================================
+       ĐỘ BỀN — hao mòn khi quá volt / quá nhiệt
+       ============================================================ */
+    function wearTick(seconds, c){
+      let wearCpu = 0;
+      if (S.oc.vcore > 1.35) wearCpu += (S.oc.vcore - 1.35) * 14 * seconds;        // electromigration
+      if (S.oc.vcore > 1.45) wearCpu += (S.oc.vcore - 1.45) * 30 * seconds;
+      if (sim.cpuTemp > 85) wearCpu += (sim.cpuTemp - 85) * 0.012 * seconds;
+      if (c.cooler.id === 'ln2') wearCpu *= 0.3;
+      applyWear('cpu', wearCpu);
+      if (sim.gpuTemp > 90) applyWear('gpu', (sim.gpuTemp - 90) * 0.01 * seconds);
+      if (S.oc.ramVolt > (eqItem('ram').ddr5 ? 1.45 : 1.40)) applyWear('ram', 0.25 * seconds);
+    }
+    function applyWear(cat, amt){
+      if (amt <= 0) return; const i = eqInst(cat); if (!i || i.broken) return;
+      i.durability = Math.max(0, i.durability - amt);
+      if (i.durability <= 0){ i.broken = true; onPartBroken(cat); }
+    }
+    function onPartBroken(cat){
+      stopStress(false); sim.activity = 'idle';
+      toast('💥 ' + CATNAME[cat] + ' đã HỎNG do ép xung quá tay! Vào Kho để sửa hoặc thay mới.', 'err');
+      sndErr(); checkAch();
+    }
+
+    /* ============================================================
+       STRESS TEST + BIỂU ĐỒ REALTIME
+       ============================================================ */
+    let stressDur = 10;
+    document.querySelectorAll('#stressDurSeg button').forEach(b => b.addEventListener('click', () => {
+      stressDur = Number(b.dataset.dur);
+      document.querySelectorAll('#stressDurSeg button').forEach(x => x.classList.toggle('on', x === b)); sndClick();
+    }));
+    const samples = [];
+    function slog(html){
+      const li = document.createElement('li'); li.innerHTML = html;
+      const log = $('stressLog'); log.prepend(li);
+      while (log.children.length > 40) log.lastChild.remove();
+    }
+    function anyBroken(){ return ['cpu','gpu','ram'].some(cat => { const i = eqInst(cat); return i && i.broken; }); }
+    $('btnStressStart').addEventListener('click', () => {
+      if (sim.stress) return;
+      if (anyBroken()){ toast('Có linh kiện đã hỏng — sửa trong Kho trước khi stress test.', 'err'); return; }
+      sim.activity = 'stress';
+      sim.stress = { elapsed: 0, dur: stressDur, errAcc: 0 };
+      samples.length = 0;
+      S.stats.stressRuns++;
+      $('btnStressStart').disabled = true; $('btnStressStop').disabled = false;
+      $('sStatus').textContent = 'Đang chạy…'; $('sStatus').style.color = 'var(--yellow)';
+      slog('<b>Bắt đầu stress test ' + stressDur + 's</b> — xung đặt ' + S.oc.mult * S.oc.bclk + ' MHz, Vcore đặt ' + f3(S.oc.vcore) + 'V, LLC ' + S.oc.llc + '.');
+      sndClick();
+    });
+    $('btnStressStop').addEventListener('click', () => { if (sim.stress){ slog('Người chơi dừng test thủ công ở ' + sim.stress.elapsed.toFixed(1) + 's.'); stopStress(true); } });
+    function stopStress(manual){
+      sim.stress = null; if (sim.activity === 'stress') sim.activity = 'idle';
+      $('btnStressStart').disabled = false; $('btnStressStop').disabled = true;
+      $('stressProg').style.width = '0%';
+      if (!manual && sim.activity !== 'crash'){ $('sStatus').textContent = 'Sẵn sàng'; $('sStatus').style.color = ''; }
+    }
+    function stressPass(dur){
+      S.stats.stressPass++;
+      S.stats.maxStressDur = Math.max(S.stats.maxStressDur, dur);
+      if (dur >= 10) S.flags.passed10 = true;
+      if (dur >= 30) S.flags.passedLong = true;
+      gainXP(dur >= 60 ? 40 : dur >= 30 ? 25 : 15);
+      $('sStatus').textContent = 'ỔN ĐỊNH ✓'; $('sStatus').style.color = 'var(--green)';
+      slog('<b class="ok">✔ QUA ' + dur + 's stress test!</b> Hệ thống ổn định ở ' + S.oc.mult * S.oc.bclk + ' MHz. +' + (dur >= 60 ? 40 : dur >= 30 ? 25 : 15) + ' XP.');
+      toast('✔ Stress test ' + dur + ' giây: ỔN ĐỊNH ở ' + (S.oc.mult * S.oc.bclk) + ' MHz!'); sndOk();
+      saveGame(true); checkAch(); renderMissions();
+    }
+    function crash(kind, c){
+      S.stats.crashes++;
+      sim.activity = 'crash';
+      stopStress(false);
+      let code, cause, fix, fixFn;
+      if (kind === 'thermal'){
+        S.stats.thermalShutdowns++;
+        code = 'Stop code: THERMAL_SHUTDOWN (TjMax 100°C)';
+        cause = 'Quá nhiệt — CPU chạm ' + Math.round(sim.cpuTemp) + '°C, vượt TjMax 100°C nên tự ngắt để bảo vệ. Tản nhiệt hiện tại không gánh nổi ' + Math.round(c.cpuPower) + 'W.';
+        fix = 'Giảm Multiplier −2, hoặc giảm Vcore −0.02V, hoặc nâng cấp tản nhiệt có hệ số tản thấp hơn.';
+        fixFn = () => { S.oc.mult = Math.max(8, S.oc.mult - 2); };
+      } else if (kind === 'psu'){
+        code = 'Stop code: POWER_SUPPLY_FAILURE';
+        cause = 'Sập nguồn — tổng công suất ~' + Math.round(c.totalPower) + 'W vượt khả năng PSU ' + c.psu.watts + 'W.';
+        fix = 'Nâng cấp PSU công suất lớn hơn trong Cửa Hàng, hoặc giảm xung/volt.';
+        fixFn = () => { S.oc.mult = Math.max(8, S.oc.mult - 2); S.oc.gpuPL = Math.max(50, S.oc.gpuPL - 20); };
+      } else if (kind === 'ram'){
+        code = 'Stop code: MEMORY_MANAGEMENT';
+        cause = 'Lỗi bộ nhớ — RAM không ổn định ở ' + c.ramFreqEff + 'MHz CL' + S.oc.ramCL + ' với ' + f3(S.oc.ramVolt) + 'V (cần khoảng ' + f3(c.marginRAM > 0 ? S.oc.ramVolt / c.marginRAM : 0) + 'V).';
+        fix = 'Tăng volt RAM +0.03V hoặc nới timing CL +2.';
+        fixFn = () => { S.oc.ramVolt = Math.round(Math.min(1.6, S.oc.ramVolt + 0.03) * 1000) / 1000; };
+      } else if (kind === 'gpu'){
+        code = 'Stop code: VIDEO_TDR_FAILURE';
+        cause = 'Treo driver GPU — Core Offset +' + S.oc.gpuCoreOff + ' MHz cần nhiều volt hơn mức ' + f3(S.oc.gpuVolt) + 'V đang cấp.';
+        fix = 'Tăng GPU Voltage +0.02V hoặc giảm Core Offset −30 MHz.';
+        fixFn = () => { S.oc.gpuVolt = Math.round(Math.min(1.2, S.oc.gpuVolt + 0.02) * 1000) / 1000; };
+      } else {
+        code = 'Stop code: WHEA_UNCORRECTABLE_ERROR';
+        cause = 'Thiếu volt (Vcore droop) — ở ' + c.freqSet + ' MHz, CPU cần ' + f3(c.reqV) + 'V nhưng sau Vdroop chỉ còn ' + f3(c.vReal) + 'V (đặt ' + f3(S.oc.vcore) + 'V, LLC ' + S.oc.llc + ' tụt ' + f3(c.droop) + 'V). Chất lượng silicon của CPU này thuộc nhóm ' + (c.silicon >= 88 ? 'tốt — cần ít volt hơn mặt bằng' : c.silicon >= 76 ? 'trung bình' : 'kém — cần volt cao hơn mặt bằng cho cùng một mức xung') + '.';
+        fix = 'Tăng Vcore +0.02V, hoặc tăng LLC thêm 1 mức để bù Vdroop, hoặc giảm Multiplier −1.';
+        fixFn = () => { S.oc.vcore = Math.round(Math.min(eqItem('board').maxV, S.oc.vcore + 0.02) * 1000) / 1000; };
+      }
+      S.lastCrash = { cause, fix, at: Date.now() };
+      window._crashFix = fixFn;
+      $('bsodCode').textContent = code;
+      $('bsodText').innerHTML = '<b>Phân tích nguyên nhân:</b> ' + cause + '<br><br><b>Cách sửa gợi ý:</b> ' + fix;
+      $('bsod').classList.add('on');
+      document.querySelector('main').classList.add('flash-red');
+      setTimeout(() => document.querySelector('main').classList.remove('flash-red'), 1600);
+      sndErr(); checkAch(); renderAdvisor();
+    }
+    $('btnBsodClose').addEventListener('click', () => { $('bsod').classList.remove('on'); sim.activity = 'idle'; $('sStatus').textContent = 'Đã crash'; $('sStatus').style.color = 'var(--red)'; });
+    $('btnBsodFix').addEventListener('click', () => { if (window._crashFix) window._crashFix(); $('bsod').classList.remove('on'); sim.activity = 'idle'; refreshAll(); toast('Đã áp dụng cách sửa. Hãy stress test lại để kiểm chứng.'); sndOk(); });
+
+    /* Vẽ biểu đồ */
+    function drawChart(){
+      const cv = $('chart'), ctx = cv.getContext('2d');
+      const W = cv.width, H = cv.height;
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = '#1a2233'; ctx.lineWidth = 1;
+      for (let i = 1; i < 5; i++){ ctx.beginPath(); ctx.moveTo(0, H * i / 5); ctx.lineTo(W, H * i / 5); ctx.stroke(); }
+      if (samples.length < 2){ ctx.fillStyle = '#5c6a80'; ctx.font = '14px monospace'; ctx.fillText('Biểu đồ sẽ vẽ khi stress test chạy…', 16, 30); return; }
+      const series = [
+        { k:'temp', max:115, col:'#ff5252' }, { k:'freq', max:7500, col:'#38d6e8' },
+        { k:'volt', max:1.8, col:'#ffb000' }, { k:'pow', max:650, col:'#3ddc84' },
+      ];
+      const tMax = Math.max(sim.stress ? sim.stress.dur : 10, samples[samples.length - 1].t);
+      series.forEach(s => {
+        ctx.strokeStyle = s.col; ctx.lineWidth = 2; ctx.beginPath();
+        samples.forEach((p, i) => { const x = p.t / tMax * (W - 8) + 4, y = H - 6 - (p[s.k] / s.max) * (H - 16); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+        ctx.stroke();
+      });
+      /* đường TjMax */
+      const yT = H - 6 - (100 / 115) * (H - 16);
+      ctx.strokeStyle = 'rgba(255,82,82,.5)'; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(0, yT); ctx.lineTo(W, yT); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#ff8a8a'; ctx.font = '11px monospace'; ctx.fillText('TjMax 100°C', 8, yT - 4);
+    }
+
+    /* ============================================================
+       BENCHMARK
+       ============================================================ */
+    $('btnBench').addEventListener('click', () => {
+      if (sim.bench || sim.stress) return;
+      if (anyBroken()){ toast('Có linh kiện đã hỏng — sửa trong Kho trước khi benchmark.', 'err'); return; }
+      sim.activity = 'bench'; sim.bench = { elapsed: 0, dur: 8 };
+      $('btnBench').disabled = true; $('benchResult').style.display = 'none';
+      $('benchLive').textContent = 'Đang chạy: kiểm tra CPU…';
+      sndClick();
+    });
+    function benchDone(){
+      const c = compute(1);
+      const score = c.score;
+      const isRecord = score > S.bestScore;
+      const gain = isRecord ? Math.round((score - S.bestScore) * 0.6) : Math.round(score * 0.02);
+      S.money += gain; S.stats.benches++;
+      if (isRecord) S.bestScore = score;
+      S.stats.maxCpuFreq = Math.max(S.stats.maxCpuFreq, Math.round(c.freqEff));
+      /* Chạy benchmark = kiểm tra binning CPU */
+      const ci = eqInst('cpu');
+      let binMsg = '';
+      if (ci && !ci.revealed){ ci.revealed = true; binMsg = ' Kiểm tra binning: silicon CPU của bạn đạt ' + ci.silicon + '/100 ' + (ci.silicon >= 90 ? '— SILICON VÀNG, ép cực ngon!' : ci.silicon >= 80 ? '— silicon tốt.' : ci.silicon >= 75 ? '— silicon trung bình.' : '— silicon hơi kém, sẽ cần volt cao.'); }
+      gainXP(20);
+      S.benchHist.unshift({ score, at: new Date().toLocaleTimeString('vi-VN') });
+      S.benchHist = S.benchHist.slice(0, 8);
+      $('benchResult').style.display = 'block';
+      $('benchScore').textContent = score.toLocaleString('vi-VN');
+      $('benchBreak').innerHTML =
+        kv('Điểm CPU (' + Math.round(c.freqEff) + ' MHz hiệu dụng)', Math.round(c.cpuScore).toLocaleString('vi-VN')) +
+        kv('Điểm GPU (' + Math.round(c.gpuCoreEff) + ' MHz)', Math.round(c.gpuScore).toLocaleString('vi-VN')) +
+        kv('Điểm RAM (' + c.ramFreqEff + ' MHz CL' + S.oc.ramCL + ')', Math.round(c.ramScore).toLocaleString('vi-VN')) +
+        kv('FPS ước tính', c.fps + ' FPS') +
+        kv('Thưởng', '+' + fmt(gain) + (isRecord ? ' (KỶ LỤC MỚI!)' : '')) +
+        (c.throttleNote ? '<div class="alert y" style="margin-top:8px">⚠ ' + c.throttleNote + ' — điểm bị giảm. Hạ nhiệt để điểm cao hơn.</div>' : '');
+      $('benchLive').textContent = 'Hoàn thành lúc ' + new Date().toLocaleTimeString('vi-VN') + '.' + binMsg;
+      toast(isRecord ? '🏆 KỶ LỤC MỚI: ' + score.toLocaleString('vi-VN') + ' điểm! +' + fmt(gain) : 'Benchmark xong: ' + score.toLocaleString('vi-VN') + ' điểm. +' + fmt(gain), isRecord ? 'gold' : '');
+      if (isRecord) sndCoin(); else sndOk();
+      $('btnBench').disabled = false; $('benchProg').style.width = '0%';
+      sim.bench = null; sim.activity = 'idle';
+      saveGame(true); checkAch(); renderBenchPanel(); renderMissions();
+    }
+    function renderBenchPanel(){
+      $('bBest').textContent = S.bestScore.toLocaleString('vi-VN') + ' điểm';
+      $('bCount').textContent = S.stats.benches;
+      $('bFps').textContent = compute(1).fps + ' FPS';
+      $('benchHist').innerHTML = S.benchHist.length ? S.benchHist.map(h => '<li><b>' + h.score.toLocaleString('vi-VN') + ' điểm</b> — ' + h.at + '</li>').join('') : '<li>Chưa có kết quả nào.</li>';
+    }
+
+    /* ============================================================
+       CỬA HÀNG
+       ============================================================ */
+    let shopCat = 'cpu';
+    document.querySelectorAll('#shopCats button').forEach(b => b.addEventListener('click', () => {
+      shopCat = b.dataset.cat;
+      document.querySelectorAll('#shopCats button').forEach(x => x.classList.toggle('on', x === b));
+      renderShop(); sndClick();
+    }));
+    function specText(cat, it){
+      if (cat === 'cpu') return 'Xung gốc ' + it.baseFreq + ' MHz · Vcore gốc ' + f2(it.baseV) + 'V · TDP ' + it.tdp + 'W\nĐiểm gốc ~' + it.baseScore.toLocaleString('vi-VN') + ' · ' + it.note;
+      if (cat === 'gpu') return 'Core ' + it.core + ' MHz · Mem ' + it.mem + ' MHz · TDP ' + it.tdp + 'W\nĐiểm gốc ~' + it.baseScore.toLocaleString('vi-VN') + ' · ' + it.note;
+      if (cat === 'ram') return it.freq + ' MHz · CL' + it.cl + ' · ' + f2(it.baseV) + 'V' + (it.ddr5 ? ' · DDR5' : ' · DDR4') + '\n' + it.note;
+      if (cat === 'board') return 'Vcore tối đa ' + f2(it.maxV) + 'V · Hệ số Vdroop ×' + it.droop + ' · BCLK tối đa ' + it.maxBclk + '\n' + it.note;
+      if (cat === 'psu') return 'Công suất ' + it.watts + 'W\n' + it.note;
+      return 'Hệ số tản ' + it.coeff + ' °C/W' + (it.base < 0 ? ' · Nhiệt bắt đầu ' + it.base + '°C' : '') + '\n' + it.note;
+    }
+    function renderShop(){
+      const lvl = levelOf(S.xp);
+      $('shopGrid').innerHTML = '';
+      CATALOG[shopCat].forEach(it => {
+        const owned = S.inventory.filter(i => i.itemId === it.id);
+        const isEq = owned.some(i => S.equipped[shopCat] === i.uid);
+        const locked = lvl < it.lvl;
+        const card = document.createElement('div'); card.className = 'card item';
+        card.innerHTML = '<div class="nm">' + it.name + '</div>' +
+          '<div>' + (isEq ? '<span class="tag eq">Đang lắp</span>' : owned.length ? '<span class="tag own">Đã có ×' + owned.length + '</span>' : '') +
+          '<span class="tag">Yêu cầu cấp ' + it.lvl + '</span></div>' +
+          '<div class="spec">' + specText(shopCat, it) + '</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="price">' + (it.price ? fmt(it.price) : 'Miễn phí') + '</span>' +
+          '<button class="buybtn primary" ' + (locked || S.money < it.price ? 'disabled' : '') + '>' + (locked ? '🔒 Cấp ' + it.lvl : S.money < it.price ? 'Thiếu tiền' : 'Mua') + '</button></div>';
+        card.querySelector('.buybtn').addEventListener('click', () => buyItem(shopCat, it));
+        $('shopGrid').appendChild(card);
+      });
+    }
+    function buyItem(cat, it){
+      if (S.money < it.price){ toast('Không đủ tiền.', 'err'); return; }
+      S.money -= it.price;
+      const inst = mkInstance(cat, it.id);
+      S.inventory.push(inst);
+      toast('Đã mua ' + it.name + ' — vào Kho Linh Kiện để lắp.' + (cat === 'cpu' ? ' Silicon của CPU này sẽ lộ diện sau lần benchmark đầu tiên.' : ''));
+      sndCoin(); saveGame(true); refreshAll();
+    }
+    function renderShopAdvice(){
+      /* Gợi ý nâng cấp theo hiệu quả / giá: mô phỏng nhiệt với từng tản chưa sở hữu + PSU */
+      const c = compute(1);
+      let best = null;
+      CATALOG.cooler.forEach(it => {
+        if (S.inventory.some(i => i.itemId === it.id) || it.price === 0) return;
+        if (levelOf(S.xp) < it.lvl) return;
+        const gain = (c.cooler.coeff - it.coeff) * c.cpuPower; // °C giảm được ở mức tải hiện tại
+        if (gain <= 0) return;
+        const eff = gain / (it.price / 1000000);
+        if (!best || eff > best.eff) best = { it, gain, eff };
+      });
+      let html = '<h3>💡 Gợi ý nâng cấp theo hiệu quả / giá tiền</h3>';
+      if (c.cpuTempTarget > 80 && best){
+        html += '<div style="font-size:14px">Nhiệt CPU dự kiến đang <b class="bad">' + Math.round(c.cpuTempTarget) + '°C</b>. Mua <b>' + best.it.name + '</b> (' + fmt(best.it.price) + ') sẽ giảm khoảng <b class="ok">' + Math.round(best.gain) + '°C</b> ở mức tải hiện tại — đây là món đáng tiền nhất cho máy của bạn lúc này.</div>';
+      } else if (c.psuLoad > 0.8){
+        const psu = CATALOG.psu.find(p => p.watts > c.psu.watts && levelOf(S.xp) >= p.lvl);
+        html += '<div style="font-size:14px">PSU đang tải <b class="warn">' + Math.round(c.psuLoad * 100) + '%</b>.' + (psu ? ' Nên nâng lên <b>' + psu.name + '</b> (' + fmt(psu.price) + ') trước khi ép xung thêm.' : ' Hãy giảm xung hoặc nâng PSU.') + '</div>';
+      } else if (best){
+        html += '<div style="font-size:14px">Máy đang ổn. Nếu muốn ép cao hơn, <b>' + best.it.name + '</b> (' + fmt(best.it.price) + ') cho hiệu quả hạ nhiệt trên giá tốt nhất: giảm ~' + Math.round(best.gain) + '°C ở tải hiện tại.</div>';
+      } else {
+        html += '<div style="font-size:14px">Bạn đã sở hữu các tản nhiệt tốt nhất trong tầm cấp độ. Hãy tập trung nâng CPU/GPU để tăng điểm.</div>';
+      }
+      $('shopAdvice').innerHTML = html;
+    }
+
+    /* ============================================================
+       KHO LINH KIỆN
+       ============================================================ */
+    function renderInv(){
+      const wrap = $('invList'); wrap.innerHTML = '';
+      ['cpu','gpu','ram','board','psu','cooler'].forEach(cat => {
+        const items = S.inventory.filter(i => i.cat === cat);
+        if (!items.length) return;
+        const h = document.createElement('h3'); h.style.margin = '14px 0 8px'; h.textContent = CATNAME[cat]; wrap.appendChild(h);
+        const grid = document.createElement('div'); grid.className = 'shopgrid';
+        items.forEach(inst => {
+          const it = itemOf(cat, inst.itemId);
+          const isEq = S.equipped[cat] === inst.uid;
+          const repairCost = Math.round(it.price * 0.25);
+          const card = document.createElement('div'); card.className = 'card item';
+          card.innerHTML = '<div class="nm">' + it.name + '</div>' +
+            '<div>' + (isEq ? '<span class="tag eq">Đang lắp</span>' : '') + (inst.broken ? '<span class="tag" style="color:var(--red);border-color:var(--red)">ĐÃ HỎNG</span>' : '') + '</div>' +
+            '<div class="spec">' + specText(cat, it) + '</div>' +
+            (cat === 'cpu' ? '<div class="spec">Silicon: ' + (inst.revealed ? '<b style="color:' + (inst.silicon >= 90 ? 'var(--amber)' : 'var(--txt)') + '">' + inst.silicon + '/100</b>' : 'chưa rõ — chạy Benchmark để kiểm tra binning') + '</div>' : '') +
+            '<div style="font-size:12.5px;color:var(--mut);margin-bottom:3px">Độ bền: ' + Math.round(inst.durability) + '%</div>' +
+            '<div class="durbar" style="margin-bottom:9px"><i style="width:' + inst.durability + '%;background:' + (inst.durability > 50 ? 'var(--green)' : inst.durability > 25 ? 'var(--yellow)' : 'var(--red)') + '"></i></div>' +
+            '<div class="rowflex">' +
+            (isEq ? '' : '<button class="small primary equip">Lắp vào máy</button>') +
+            (inst.durability < 100 ? '<button class="small repair">Sửa chữa (' + fmt(repairCost) + ')</button>' : '') +
+            '</div>';
+          const eq = card.querySelector('.equip');
+          if (eq) eq.addEventListener('click', () => equipPart(inst));
+          const rp = card.querySelector('.repair');
+          if (rp) rp.addEventListener('click', () => {
+            if (S.money < repairCost){ toast('Không đủ tiền sửa.', 'err'); return; }
+            S.money -= repairCost; inst.durability = 100; inst.broken = false;
+            toast('Đã sửa ' + it.name + ' về 100% độ bền.'); sndOk(); saveGame(true); refreshAll();
+          });
+          grid.appendChild(card);
+        });
+        wrap.appendChild(grid);
+      });
+    }
+    function equipPart(inst){
+      S.equipped[inst.cat] = inst.uid;
+      const it = itemOf(inst.cat, inst.itemId);
+      if (inst.cat === 'cpu'){ const ram = eqItem('ram'); S.oc = defaultOC(it, ram); toast('Đã lắp ' + it.name + ' — cài đặt ép xung đã đặt lại về mặc định của CPU mới.'); }
+      else if (inst.cat === 'ram'){ S.oc.ramFreq = it.freq; S.oc.ramCL = it.cl; S.oc.ramVolt = it.baseV; toast('Đã lắp ' + it.name + ' — thông số RAM đặt lại mặc định.'); }
+      else toast('Đã lắp ' + it.name + '.');
+      sndOk(); saveGame(true); refreshAll();
+    }
+
+    /* ============================================================
+       NHIỆM VỤ + THÀNH TÍCH
+       ============================================================ */
+    const MISSIONS = [
+      { id:'m1', t:'Khởi động sự nghiệp', d:'Đạt 5.000 điểm benchmark.', reward:800000, xp:30, check:() => S.bestScore >= 5000 },
+      { id:'m2', t:'Chạm mốc 4.5 GHz', d:'Ép CPU đạt xung hiệu dụng 4.500 MHz trong benchmark hoặc stress.', reward:1000000, xp:40, check:() => S.stats.maxCpuFreq >= 4500 || compute(1).freqEff >= 4500 },
+      { id:'m3', t:'Bản lĩnh 30 giây', d:'Qua stress test 30 giây không crash.', reward:1200000, xp:50, check:() => S.stats.maxStressDur >= 30 },
+      { id:'m4', t:'Mát mà nhanh', d:'Qua stress test với nhiệt CPU đỉnh dưới 85°C và xung đặt từ 4.200 MHz trở lên.', reward:1500000, xp:60, check:() => S.stats.coolPass === true },
+      { id:'m5', t:'Tay nghề cứng', d:'Đạt 12.000 điểm benchmark.', reward:2500000, xp:80, check:() => S.bestScore >= 12000 },
+      { id:'m6', t:'Chủ nhân AIO', d:'Sở hữu một tản nhiệt nước AIO bất kỳ.', reward:600000, xp:30, check:() => S.inventory.some(i => i.itemId === 'aio240' || i.itemId === 'aio360') },
+      { id:'m7', t:'Marathon 60 giây', d:'Qua stress test 60 giây không crash.', reward:3000000, xp:100, check:() => S.stats.maxStressDur >= 60 },
+      { id:'m8', t:'Câu lạc bộ 5.2 GHz', d:'Ép CPU đạt xung hiệu dụng 5.200 MHz.', reward:4000000, xp:120, check:() => S.stats.maxCpuFreq >= 5200 || compute(1).freqEff >= 5200 },
+      { id:'m9', t:'Huyền thoại điểm số', d:'Đạt 20.000 điểm benchmark.', reward:6000000, xp:150, check:() => S.bestScore >= 20000 },
+      { id:'m10', t:'Chạm đỉnh 30.000', d:'Đạt 30.000 điểm benchmark — đẳng cấp thi đấu.', reward:12000000, xp:250, check:() => S.bestScore >= 30000 },
+    ];
+    function renderMissions(){
+      const wrap = $('missionList'); wrap.innerHTML = '';
+      MISSIONS.forEach(m => {
+        const claimed = S.claimedMissions.includes(m.id);
+        const done = !claimed && m.check();
+        const card = document.createElement('div'); card.className = 'card mission';
+        card.innerHTML = '<div><div class="t">' + m.t + '</div><div class="d">' + m.d + '</div><div class="d">Thưởng: <b style="color:var(--amber)">' + fmt(m.reward) + '</b> + ' + m.xp + ' XP</div></div>' +
+          (claimed ? '<span class="tag eq">Đã nhận thưởng</span>' : '<button class="small primary" ' + (done ? '' : 'disabled') + '>' + (done ? 'Nhận thưởng' : 'Chưa hoàn thành') + '</button>');
+        const btn = card.querySelector('button');
+        if (btn) btn.addEventListener('click', () => {
+          S.claimedMissions.push(m.id); S.money += m.reward; gainXP(m.xp);
+          toast('🎁 Hoàn thành nhiệm vụ "' + m.t + '": +' + fmt(m.reward)); sndCoin(); saveGame(true); refreshAll();
+        });
+        wrap.appendChild(card);
+      });
+    }
+    const ACHS = [
+      { id:'a1', ic:'💥', t:'Crash đầu đời', d:'Trải qua màn hình xanh lần đầu tiên.', check:() => S.stats.crashes >= 1 },
+      { id:'a2', ic:'🏅', t:'10K Club', d:'Đạt 10.000 điểm benchmark.', check:() => S.bestScore >= 10000 },
+      { id:'a3', ic:'⚡', t:'Đi dây điện cao thế', d:'Đặt Vcore từ 1.45V trở lên.', check:() => S.oc.vcore >= 1.45 },
+      { id:'a4', ic:'🔥', t:'Sống sót qua lửa', d:'Bị ngắt nhiệt (100°C) mà linh kiện không hỏng.', check:() => S.stats.thermalShutdowns >= 1 },
+      { id:'a5', ic:'🧰', t:'Nhà sưu tầm', d:'Sở hữu từ 10 linh kiện trở lên.', check:() => S.inventory.length >= 10 },
+      { id:'a6', ic:'🎓', t:'Chuyên gia', d:'Đạt cấp độ 4.', check:() => levelOf(S.xp) >= 4 },
+      { id:'a7', ic:'❄️', t:'Chơi với nitơ', d:'Lắp tản nhiệt LN2.', check:() => { const i = eqInst('cooler'); return i && i.itemId === 'ln2'; } },
+      { id:'a8', ic:'👑', t:'25K — Đẳng cấp thi đấu', d:'Đạt 25.000 điểm benchmark.', check:() => S.bestScore >= 25000 },
+      { id:'a9', ic:'🔁', t:'Nghiện benchmark', d:'Chạy benchmark 10 lần.', check:() => S.stats.benches >= 10 },
+      { id:'a10', ic:'💎', t:'Silicon vàng', d:'Sở hữu CPU có silicon từ 95/100 (đã kiểm tra binning).', check:() => S.inventory.some(i => i.cat === 'cpu' && i.revealed && i.silicon >= 95) },
+    ];
+    function checkAch(){
+      ACHS.forEach(a => {
+        if (!S.achievements.includes(a.id) && a.check()){ S.achievements.push(a.id); toast('🏆 Thành tích mới: ' + a.t + '!', 'gold'); }
+      });
+    }
+    function renderAch(){
+      $('achGrid').innerHTML = ACHS.map(a => {
+        const un = S.achievements.includes(a.id);
+        return '<div class="card ach ' + (un ? '' : 'locked') + '"><div class="ic">' + a.ic + '</div><div style="font-weight:700;color:#fff">' + a.t + '</div><div class="muted">' + a.d + '</div><div class="muted">' + (un ? '✔ Đã mở khóa' : 'Chưa mở khóa') + '</div></div>';
+      }).join('');
+    }
+
+    /* ============================================================
+       VÒNG LẶP MÔ PHỎNG CHÍNH (100ms)
+       ============================================================ */
+    let lastTick = Date.now();
+    setInterval(() => {
+      const now = Date.now(); const dt = Math.min(0.5, (now - lastTick) / 1000); lastTick = now;
+      const load = sim.activity === 'stress' || sim.activity === 'bench' ? 1 : 0.15;
+      const c = compute(load);
+      /* Nhiệt tiến về mục tiêu với hằng số thời gian ~2.5s */
+      const k = 1 - Math.exp(-dt / 2.5);
+      sim.cpuTemp += (c.cpuTempTarget - sim.cpuTemp) * k;
+      sim.gpuTemp += (c.gpuTempTarget - sim.gpuTemp) * k;
+      if (sim.activity === 'idle'){ sim.cpuTemp += (Math.random() - 0.5) * 0.3; sim.gpuTemp += (Math.random() - 0.5) * 0.3; }
+
+      if (sim.stress){
+        const st = sim.stress; st.elapsed += dt;
+        samples.push({ t: st.elapsed, temp: sim.cpuTemp, freq: c.freqEff, volt: c.vReal, pow: c.cpuPower });
+        if (samples.length > 700) samples.shift();
+        $('stressProg').style.width = (st.elapsed / st.dur * 100) + '%';
+        $('sTime').textContent = st.elapsed.toFixed(1) + 's / ' + st.dur + 's';
+        $('sTemp').textContent = Math.round(sim.cpuTemp) + ' °C';
+        $('sTemp').style.color = meterColor(tempZone(sim.cpuTemp));
+        $('sClock').textContent = Math.round(c.freqEff) + ' MHz';
+        $('sV').textContent = f3(c.vReal) + ' V';
+        $('sPow').textContent = Math.round(c.cpuPower) + ' W';
+        wearTick(dt, c);
+        /* Kiểm tra crash */
+        if (sim.cpuTemp >= TJMAX){ slog('<b class="bad">✖ QUÁ NHIỆT ' + Math.round(sim.cpuTemp) + '°C — tự ngắt!</b>'); crash('thermal', c); }
+        else if (c.psuLoad > 1.02){ slog('<b class="bad">✖ SẬP NGUỒN — PSU quá tải!</b>'); crash('psu', c); }
+        else {
+          /* Tỉ lệ lỗi tăng theo thời gian khi thiếu volt */
+          const deficit = Math.max(0, 1 - c.margin);
+          const worst = c.margin === c.marginRAM ? 'ram' : c.margin === c.marginGPU * 1.04 ? 'gpu' : 'volt';
+          const pErr = deficit * deficit * 2.4 * dt * (1 + st.elapsed / st.dur);
+          st.errAcc += pErr;
+          if (deficit > 0.02 && Math.random() < pErr * 3){
+            slog('<b class="warn">⚠ Lỗi tính toán phát hiện ở nhân #' + (1 + Math.floor(Math.random() * 8)) + ' (sai số làm tròn) — dấu hiệu thiếu volt…</b>');
+          }
+          if (Math.random() < st.errAcc * dt * 2.2){
+            slog('<b class="bad">✖ CRASH ở ' + st.elapsed.toFixed(1) + 's!</b>');
+            crash(worst === 'volt' ? 'volt' : worst, c);
+          } else if (st.elapsed >= st.dur){
+            if (sim.cpuTemp < 85 && c.freqSet >= 4200) S.stats.coolPass = true;
+            S.stats.maxCpuFreq = Math.max(S.stats.maxCpuFreq, Math.round(c.freqEff));
+            stopStress(false); stressPass(st.dur);
+          }
+        }
+        drawChart();
+      }
+      if (sim.bench){
+        const b = sim.bench; b.elapsed += dt;
+        $('benchProg').style.width = (b.elapsed / b.dur * 100) + '%';
+        const phase = b.elapsed < 3 ? 'Đang chạy: kiểm tra CPU…' : b.elapsed < 5.5 ? 'Đang chạy: kiểm tra GPU…' : 'Đang chạy: kiểm tra RAM & tổng hợp…';
+        $('benchLive').textContent = phase + ' Nhiệt CPU ' + Math.round(sim.cpuTemp) + '°C · Xung ' + Math.round(c.freqEff) + ' MHz' + (c.throttleNote ? ' · ⚠ ' + c.throttleNote : '');
+        wearTick(dt * 0.6, c);
+        if (sim.cpuTemp >= TJMAX){ sim.bench = null; $('btnBench').disabled = false; $('benchProg').style.width = '0%'; crash('thermal', c); }
+        else if (b.elapsed >= b.dur) benchDone();
+      }
+      renderDash(); renderOCNumbers(c);
+    }, 100);
+
+    /* ============================================================
+       RENDER — TRANG ÉP XUNG
+       ============================================================ */
+    function refreshOC(){
+      const cpu = eqItem('cpu'), gpu = eqItem('gpu'), ram = eqItem('ram'), board = eqItem('board');
+      $('ocCpuName').textContent = cpu.name + ' (gốc ' + cpu.baseFreq + ' MHz · ' + f2(cpu.baseV) + 'V · TDP ' + cpu.tdp + 'W)';
+      $('ocGpuName').textContent = gpu.name;
+      $('ocRamName').textContent = ram.name + (ram.ddr5 ? ' · DDR5 chịu volt tới 1.45V' : '');
+      CONTROLS.forEach(c => {
+        const vEl = $('v-' + c.key), rEl = $('r-' + c.key);
+        if (vEl) vEl.textContent = c.fmt(S.oc[c.key]);
+        if (rEl && document.activeElement !== rEl) rEl.value = S.oc[c.key];
+      });
+      document.querySelectorAll('#llcSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.llc) === S.oc.llc));
+      renderOCNumbers(compute(1)); renderAdvisor();
+    }
+    function renderOCNumbers(c){
+      if (!$('tab-oc').classList.contains('on') && !$('tab-stress').classList.contains('on')) { /* vẫn cập nhật nếu đang ở OC */ }
+      const el = $('ocLive'); if (!el) return;
+      const zone = vcoreZone(S.oc.vcore);
+      el.innerHTML =
+        kv('Xung CPU đặt / hiệu dụng', c.freqSet + ' / ' + Math.round(c.freqEff) + ' MHz') +
+        kv('Vcore cần cho xung này', f3(c.reqV) + ' V (silicon ' + (eqInst('cpu').revealed ? c.silicon + '/100' : 'ẩn — hệ số ×' + c.siliconFactor.toFixed(2)) + ')') +
+        kv('Vcore thực sau Vdroop', '<b style="color:' + (c.marginCPU >= 1 ? 'var(--green)' : 'var(--red)') + '">' + f3(c.vReal) + ' V</b>') +
+        kv('Vọt volt khi xả tải (LLC ' + S.oc.llc + ')', '+' + f3(c.overshoot) + ' V') +
+        kv('Công suất CPU theo công thức', Math.round(c.cpuPower) + ' W = ' + c.cpu.tdp + ' × ' + c.freqRatio.toFixed(2) + ' × (' + f3(c.vReal) + '/' + f2(c.cpu.baseV) + ')²') +
+        kv('Nhiệt CPU dự kiến khi tải nặng', '<b style="color:' + meterColor(tempZone(c.cpuTempTarget)) + '">' + Math.round(c.cpuTempTarget) + ' °C</b> = ' + c.cooler.base + ' + ' + Math.round(c.cpuPower) + 'W × ' + c.cooler.coeff + ' °C/W') +
+        kv('Power Limit đang áp', c.plActive + ' W' + (c.plLimited ? ' — ĐANG BỊ BÓP XUNG' : '')) +
+        kv('GPU core/mem hiệu dụng', Math.round(c.gpuCoreEff) + ' / ' + c.gpuMem + ' MHz · ' + Math.round(c.gpuPower) + ' W · ~' + Math.round(c.gpuTempTarget) + '°C') +
+        kv('Hệ số an toàn tổng (volt)', '<b style="color:' + (c.margin >= 1 ? 'var(--green)' : 'var(--red)') + '">' + Math.round(c.margin * 100) + '%</b>') +
+        (zone !== 'g' ? '<div class="alert ' + zone + '" style="margin-top:8px">' + (zone === 'r' ? 'Vcore trên 1.45V: giảm tuổi thọ nhanh do electromigration!' : 'Vcore 1.35–1.45V: vùng nguy hiểm, chỉ dùng ngắn hạn.') + '</div>' : '');
+    }
+    function refreshAll(){
+      renderHUD(); refreshOC(); renderDash(); renderShop(); renderShopAdvice(); renderInv(); renderMissions(); renderAch(); renderBenchPanel(); checkAch();
+    }
+
+    /* ============================================================
+       KHỞI TẠO
+       ============================================================ */
+    buildControls();
+    (function init(){
+      let loaded = false;
+      try{ const raw = localStorage.getItem(SAVE_KEY); if (raw){ const d = JSON.parse(raw); if (d && d.inventory && d.oc){ S = d; uidSeq = Math.max(0, ...S.inventory.map(i => i.uid)) + 1; loaded = true; } } }catch(e){}
+      refreshAll(); drawChart();
+      if (loaded) toast('Đã tự động tải bản lưu trước đó. Bấm "Chơi mới" nếu muốn bắt đầu lại.');
+      else toast('Chào mừng đến với xưởng ép xung! Bắt đầu: vào tab Ép Xung, tăng Multiplier +1 rồi qua Stress Test kiểm tra.');
+    })();
+    </script>
+  </body>
+</html>
