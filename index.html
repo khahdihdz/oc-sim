@@ -31,7 +31,7 @@
     <meta name="twitter:description" content="Game giả lập ép xung PC theo nguyên lý thật: chỉnh Multiplier, BCLK, Vcore, Vdroop và LLC, chạy stress test và benchmark, mua linh kiện trong cửa hàng 31 món và leo rank từ Nghiệp Dư lên Huyền Thoại Ép Xung. Chơi miễn phí ngay trên trình duyệt." />
     <meta name="twitter:image" content="https://khahdihdz.github.io/oc-sim/assets/thumbnail.jpg?v=2" />
     <meta name="twitter:image:alt" content="Thumbnail game OC Simulator: thùng máy tản nước custom phát sáng cạnh màn hình dashboard ép xung với đồng hồ nhiệt độ và biểu đồ hiệu năng" />
-    <title>Game Giả Lập Ép Xung Máy Tính</title>
+    <title>OC Simulator — Game Giả Lập Ép Xung Máy Tính | Ép Xung PC Miễn Phí Trên Trình Duyệt</title>
     <style>
       button, [role="button"], select, input:not([type="checkbox"], [type="radio"]) { min-height: 2.25rem; }
       * { box-sizing: border-box; }
@@ -234,6 +234,21 @@
       .thumb{ height:96px; border:1px solid var(--line); border-radius:6px; background:radial-gradient(120% 130% at 50% 0%, #182236 0%, #0a0e16 70%); display:flex; align-items:center; justify-content:center; margin-bottom:9px; overflow:hidden; }
       .thumb svg{ width:150px; height:84px; }
       .item.equipped{ border-color:#1f5138; box-shadow:inset 0 0 0 1px #1f5138; }
+      /* ---------- Footer: Donate + Góp ý / Liên hệ ---------- */
+      .support-footer{ max-width:1240px; margin:0 auto; padding:0 12px 28px; }
+      .support-card{ background:linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--line); border-radius:10px; padding:18px 16px; text-align:center; }
+      .support-card h3{ font-size:17px; color:#fff; margin:0 0 6px; letter-spacing:.01em; }
+      .support-card h3 span{ color:var(--amber); }
+      .support-card p{ margin:0 auto; max-width:640px; color:var(--mut); font-size:14px; line-height:1.6; }
+      .support-btns{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+      .support-btn{ display:inline-flex; align-items:center; gap:8px; min-height:2.75rem; padding:10px 20px; border-radius:8px; font-weight:700; font-size:15px; text-decoration:none; border:1px solid; transition:transform .15s, filter .15s, border-color .15s; }
+      .support-btn:active{ transform:translateY(1px); }
+      .support-btn.donate{ background:#7a5200; border-color:var(--amber); color:#ffe9b0; }
+      .support-btn.donate:hover{ background:#96670a; filter:brightness(1.08); }
+      .support-btn.contact{ background:#0a2a3d; border-color:#2a7ab8; color:#cfeaff; }
+      .support-btn.contact:hover{ background:#0f3a56; border-color:var(--cyan); color:#fff; }
+      .support-note{ margin-top:12px !important; font-size:12.5px !important; color:var(--dim) !important; }
+      @media (max-width:560px){ .support-btns{ flex-direction:column; } .support-btn{ justify-content:center; width:100%; } }
       @media (prefers-reduced-motion: reduce){
         #rigSvg .fanblades, #rigSvg .rgbbars, #rigSvg .heatpulse, #rigSvg .vapor, .hero .cap .live::before{ animation:none; }
       }
@@ -656,6 +671,19 @@
         <div class="grid" id="achGrid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))"></div>
       </section>
     </main>
+
+    <!-- ================= FOOTER: DONATE + GÓP Ý ================= -->
+    <footer class="support-footer">
+      <div class="support-card">
+        <h3>❤️ Ủng hộ <span>OC Simulator</span> &amp; Góp ý cho tác giả</h3>
+        <p>Game được làm miễn phí để mọi người chơi ngay trên trình duyệt. Nếu bạn thấy game hay và muốn tác giả có thêm động lực cập nhật tính năng, linh kiện và nhiệm vụ mới, hãy ủng hộ một ly cà phê nhé! Mọi góp ý, báo lỗi hay ý tưởng hay ho cũng đều được chào đón.</p>
+        <div class="support-btns">
+          <a class="support-btn donate" href="https://khahdihdz.github.io" target="_blank" rel="noopener noreferrer">☕ Donate — Ủng hộ tác giả</a>
+          <a class="support-btn contact" href="https://facebook.com/khahdihdz" target="_blank" rel="noopener noreferrer">💬 Góp ý &amp; Liên hệ qua Facebook</a>
+        </div>
+        <p class="support-note">Donate sẽ mở trang cá nhân của tác giả tại khahdihdz.github.io · Góp ý &amp; liên hệ qua Facebook: facebook.com/khahdihdz</p>
+      </div>
+    </footer>
 
     <!-- ================= BSOD ================= -->
     <div class="overlay" id="bsod">
