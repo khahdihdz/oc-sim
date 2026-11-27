@@ -370,8 +370,8 @@
               </div>
               <div class="ctl">
                 <div class="name">Bước nhảy Vcore</div>
-                <div class="desc">Chọn độ mịn khi bấm + / − cho Vcore.</div>
-                <div class="row"><div class="seg" id="vstepSeg"><button data-vs="0.005">0.005V</button><button data-vs="0.01" class="on">0.01V</button></div></div>
+                <div class="desc">Chỉnh được — không cố định: chọn độ mịn mỗi lần bấm + / − cho Vcore. 0.001V để dò volt thật tinh, 0.025V để nhảy nhanh. Mức đang chọn cũng hiện ngay tại ô Vcore phía trên.</div>
+                <div class="row"><div class="seg" id="vstepSeg"><button data-vs="0.001">0.001V</button><button data-vs="0.005">0.005V</button><button data-vs="0.01" class="on">0.01V</button><button data-vs="0.025">0.025V</button></div></div>
               </div>
             </div>
 
@@ -635,7 +635,7 @@
     }
     function defaultOC(cpuItem, ramItem){
       return {
-        mult: Math.round(cpuItem.baseFreq/100), bclk: 100, vcore: cpuItem.baseV, llc: 3,
+        mult: Math.round(cpuItem.baseFreq/100), bclk: 100, vcore: cpuItem.baseV, llc: 3, vstep: 0.01,
         pl1: Math.round(cpuItem.tdp*1.4), pl2: Math.round(cpuItem.tdp*1.8),
         gpuCoreOff: 0, gpuMemOff: 0, gpuPL: 100, gpuVolt: 1.00, fan: 60,
         ramFreq: ramItem.freq, ramCL: ramItem.cl, ramVolt: ramItem.baseV,
@@ -898,7 +898,8 @@
           '<div class="v" id="v-' + c.key + '">--</div>' +
           '<button class="step" data-k="' + c.key + '" data-d="1">+</button></div>' +
           '<div style="grid-column:1 / -1"><input type="range" id="r-' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + (typeof c.step === 'function' ? 0.005 : c.step) + '"></div>' +
-          ((c.key === 'vcore' || c.key === 'bclk') ? '<div class="desc" id="lim-' + c.key + '" style="grid-column:1 / -1;color:var(--amber)"></div>' : '');
+          ((c.key === 'vcore' || c.key === 'bclk') ? '<div class="desc" id="lim-' + c.key + '" style="grid-column:1 / -1;color:var(--amber)"></div>' : '') +
+          (c.key === 'vcore' ? '<div class="desc" id="vstepNow" style="grid-column:1 / -1;color:var(--cyan)"></div>' : '');
         $(c.box).appendChild(div);
       });
       document.querySelectorAll('.ctl .step').forEach(b => b.addEventListener('click', () => {
@@ -912,7 +913,10 @@
         b.addEventListener('click', () => { S.oc.llc = i; refreshAll(); sndClick(); }); llc.appendChild(b); }
       document.querySelectorAll('#vstepSeg button').forEach(b => b.addEventListener('click', () => {
         vcoreStep = Number(b.dataset.vs);
+        if (S && S.oc) S.oc.vstep = vcoreStep;
         document.querySelectorAll('#vstepSeg button').forEach(x => x.classList.toggle('on', x === b)); sndClick();
+        toast('Đã đặt bước nhảy Vcore = ' + f3(vcoreStep) + 'V — mỗi lần bấm + / − ở mục Vcore sẽ tăng/giảm đúng ' + f3(vcoreStep) + 'V.', 'gold');
+        refreshOC();
       }));
     }
     let capToastAt = 0;
@@ -1620,6 +1624,9 @@
       const limB = $('lim-bclk');
       if (limB) limB.textContent = 'Giới hạn của ' + board.name + ': BCLK tối đa ' + board.maxBclk + ' MHz.';
       document.querySelectorAll('#llcSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.llc) === S.oc.llc));
+      const vsNow = $('vstepNow');
+      if (vsNow) vsNow.textContent = 'Bước nhảy đang dùng: mỗi lần bấm + / − đổi Vcore ±' + f3(vcoreStep) + 'V — chỉnh ở mục "Bước nhảy Vcore" ngay dưới mục LLC.';
+      document.querySelectorAll('#vstepSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.vs) === vcoreStep));
       renderOCNumbers(compute(1)); renderAdvisor();
     }
     function renderOCNumbers(c){
@@ -1649,6 +1656,7 @@
     (function init(){
       let loaded = false;
       try{ const raw = localStorage.getItem(SAVE_KEY); if (raw){ const d = JSON.parse(raw); if (d && d.inventory && d.oc){ S = d; uidSeq = Math.max(0, ...S.inventory.map(i => i.uid)) + 1; loaded = true; } } }catch(e){}
+      if (S.oc && [0.001, 0.005, 0.01, 0.025].includes(Number(S.oc.vstep))) vcoreStep = Number(S.oc.vstep);
       refreshAll(); drawChart();
       if (loaded) toast('Đã tự động tải bản lưu trước đó. Bấm "Chơi mới" nếu muốn bắt đầu lại.');
       else toast('Chào mừng đến với xưởng ép xung! Bắt đầu: vào tab Ép Xung, tăng Multiplier +1 rồi qua Stress Test kiểm tra.');
