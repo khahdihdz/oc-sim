@@ -370,8 +370,9 @@
               </div>
               <div class="ctl">
                 <div class="name">Bước nhảy Vcore</div>
-                <div class="desc">Chỉnh được — không cố định: chọn độ mịn mỗi lần bấm + / − cho Vcore. 0.001V để dò volt thật tinh, 0.025V để nhảy nhanh. Mức đang chọn cũng hiện ngay tại ô Vcore phía trên.</div>
-                <div class="row"><div class="seg" id="vstepSeg"><button data-vs="0.001">0.001V</button><button data-vs="0.005">0.005V</button><button data-vs="0.01" class="on">0.01V</button><button data-vs="0.025">0.025V</button></div></div>
+                <div class="desc">Độ mịn mỗi lần bấm + / − cho Vcore: kéo thanh trượt hoặc bấm + / − ở đây để chuyển giữa 4 mức. 0.001V để dò volt thật tinh, 0.025V để nhảy nhanh. Mức đang chọn cũng hiện ngay tại ô Vcore phía trên.</div>
+                <div class="row"><button class="step" id="vstepMinus" aria-label="Giảm bước nhảy Vcore">−</button><div class="v" id="vstepVal">0.010 V</div><button class="step" id="vstepPlus" aria-label="Tăng bước nhảy Vcore">+</button></div>
+                <div style="grid-column:1 / -1"><input type="range" id="r-vstep" min="0" max="3" step="1" value="2" aria-label="Thanh trượt bước nhảy Vcore"></div>
               </div>
             </div>
 
@@ -861,6 +862,7 @@
        ĐIỀU KHIỂN ÉP XUNG (stepper dùng chung)
        ============================================================ */
     let vcoreStep = 0.01;
+    const VSTEPS = [0.001, 0.005, 0.01, 0.025];
     const CONTROLS = [
       { box:'ctlCpu', key:'mult',  name:'CPU Multiplier (Hệ số nhân)', fmt:v => '×' + v, step:1, min:8, max:70,
         desc:'Tăng Multiplier chỉ tăng xung CPU: Xung = Multiplier × BCLK. Cách ép xung an toàn nhất.' },
@@ -903,7 +905,7 @@
         $(c.box).appendChild(div);
       });
       document.querySelectorAll('.ctl .step').forEach(b => b.addEventListener('click', () => {
-        const c = CONTROLS.find(x => x.key === b.dataset.k); const st = typeof c.step === 'function' ? c.step() : c.step;
+        const c = CONTROLS.find(x => x.key === b.dataset.k); if (!c) return; const st = typeof c.step === 'function' ? c.step() : c.step;
         setOC(c, S.oc[c.key] + st * Number(b.dataset.d)); sndClick();
       }));
       CONTROLS.forEach(c => $('r-' + c.key).addEventListener('input', e => setOC(c, Number(e.target.value), true)));
@@ -911,13 +913,25 @@
       const llc = $('llcSeg'); llc.innerHTML = '';
       for (let i = 1; i <= 5; i++){ const b = document.createElement('button'); b.textContent = 'Mức ' + i; b.dataset.llc = i;
         b.addEventListener('click', () => { S.oc.llc = i; refreshAll(); sndClick(); }); llc.appendChild(b); }
-      document.querySelectorAll('#vstepSeg button').forEach(b => b.addEventListener('click', () => {
-        vcoreStep = Number(b.dataset.vs);
+      /* Bước nhảy Vcore: thanh trượt + nút +/− giống các điều khiển khác,
+         trượt hoặc bấm để chuyển giữa 4 mức rời rạc trong VSTEPS */
+      function setVstep(idx, silent){
+        const i = clamp(Math.round(idx), 0, VSTEPS.length - 1);
+        const changed = VSTEPS[i] !== vcoreStep;
+        vcoreStep = VSTEPS[i];
         if (S && S.oc) S.oc.vstep = vcoreStep;
-        document.querySelectorAll('#vstepSeg button').forEach(x => x.classList.toggle('on', x === b)); sndClick();
-        toast('Đã đặt bước nhảy Vcore = ' + f3(vcoreStep) + 'V — mỗi lần bấm + / − ở mục Vcore sẽ tăng/giảm đúng ' + f3(vcoreStep) + 'V.', 'gold');
+        const vv = $('vstepVal'); if (vv) vv.textContent = f3(vcoreStep) + ' V';
+        const rv = $('r-vstep'); if (rv && document.activeElement !== rv) rv.value = i;
+        if (!silent){
+          sndClick();
+          if (changed) toast('Đã đặt bước nhảy Vcore = ' + f3(vcoreStep) + 'V — mỗi lần bấm + / − ở mục Vcore sẽ tăng/giảm đúng ' + f3(vcoreStep) + 'V.', 'gold');
+        }
         refreshOC();
-      }));
+      }
+      $('vstepMinus').addEventListener('click', () => setVstep(VSTEPS.indexOf(vcoreStep) - 1));
+      $('vstepPlus').addEventListener('click', () => setVstep(VSTEPS.indexOf(vcoreStep) + 1));
+      $('r-vstep').addEventListener('input', e => setVstep(Number(e.target.value), true));
+      $('r-vstep').addEventListener('change', e => setVstep(Number(e.target.value)));
     }
     let capToastAt = 0;
     function notifyCap(c, board){
@@ -1626,7 +1640,8 @@
       document.querySelectorAll('#llcSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.llc) === S.oc.llc));
       const vsNow = $('vstepNow');
       if (vsNow) vsNow.textContent = 'Bước nhảy đang dùng: mỗi lần bấm + / − đổi Vcore ±' + f3(vcoreStep) + 'V — chỉnh ở mục "Bước nhảy Vcore" ngay dưới mục LLC.';
-      document.querySelectorAll('#vstepSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.vs) === vcoreStep));
+      const vvEl = $('vstepVal'); if (vvEl) vvEl.textContent = f3(vcoreStep) + ' V';
+      const rvEl = $('r-vstep'); if (rvEl && document.activeElement !== rvEl) rvEl.value = VSTEPS.indexOf(vcoreStep);
       renderOCNumbers(compute(1)); renderAdvisor();
     }
     function renderOCNumbers(c){
