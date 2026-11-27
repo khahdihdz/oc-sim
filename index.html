@@ -701,6 +701,7 @@
       <section class="tab" id="tab-service">
         <h2>Dịch vụ — Build máy &amp; ép xung thuê</h2>
         <p class="muted">Nhận build máy và ép xung thuê cho khách hàng tìm tới xưởng. Cách làm: <b>Nhận việc</b> → lắp linh kiện cho khách ngay tại tab này (dùng đồ trong Kho hoặc mua thêm ở Cửa Hàng bằng tiền của bạn) → <b>đưa máy khách lên bàn test</b> → ép xung bằng đúng các tab Ép Xung / Benchmark / Stress Test như máy của bạn → đạt đủ yêu cầu thì <b>Giao máy</b>: khách trả lại toàn bộ <b>ngân sách linh kiện</b> cộng thêm <b>thù lao</b>, linh kiện đã lắp theo khách về, uy tín tăng. Giao máy chưa đạt yêu cầu thì không được nhận tiền. <b>Quá hạn giao</b>: mất uy tín và bồi thường 20% ngân sách cho khách. Hủy việc trước khi giao thì linh kiện được trả lại Kho, không mất uy tín. Thời gian trong game trôi theo ngày: <b>1 ngày = 60 giây chơi</b>; khách chờ quá lâu cũng sẽ bỏ đi. Tối đa 3 việc cùng lúc, luôn có 3 khách đang chờ.</p>
+        <p class="muted">🌱 <b>Mới xưởng, ít vốn?</b> Hãy nhận việc của khách <b>Khởi nghiệp</b>: khách mang máy của họ tới, chỉ thuê ép xung &amp; tối ưu hoặc thay keo tản nhiệt &amp; vệ sinh — <b>không cần mua linh kiện, không tốn tiền ứng trước</b>. Thù lao nhỏ (200.000–800.000 ₫) nhưng làm vài việc là tích đủ vốn để nhận việc build máy lớn. Khi uy tín dưới 25 hoặc bạn còn ở cấp thấp, luôn có ít nhất 1 khách Khởi nghiệp trong số khách đang chờ; uy tín và cấp càng cao, khách build máy lớn càng chiếm chỗ.</p>
         <div id="svcSummary" class="mb"></div>
         <div id="svcLoaded"></div>
         <h3>👥 Khách đang chờ</h3>
@@ -1695,7 +1696,9 @@
         svcJobNow.benchBest = Math.max(svcJobNow.benchBest, score);
         svcJobNow.benchClock = Math.max(svcJobNow.benchClock, Math.round(c.freqEff));
         saveGame(true);
-        toast('📋 Đã ghi vào việc của ' + svcJobNow.name + ': Benchmark ' + svcJobNow.benchBest.toLocaleString('vi-VN') + ' điểm, xung ' + svcJobNow.benchClock.toLocaleString('vi-VN') + ' MHz (yêu cầu ' + svcJobNow.reqScore.toLocaleString('vi-VN') + ' điểm / ' + svcJobNow.reqClock.toLocaleString('vi-VN') + ' MHz).', 'gold');
+        toast(svcJobNow.tier === 0
+          ? '📋 Đã ghi vào việc của ' + svcJobNow.name + ': xung CPU khi Benchmark ' + svcJobNow.benchClock.toLocaleString('vi-VN') + ' MHz' + (svcJobNow.kind === 'oc' ? ' (mục tiêu ' + svcJobNow.reqClock.toLocaleString('vi-VN') + ' MHz)' : '') + '.'
+          : '📋 Đã ghi vào việc của ' + svcJobNow.name + ': Benchmark ' + svcJobNow.benchBest.toLocaleString('vi-VN') + ' điểm, xung ' + svcJobNow.benchClock.toLocaleString('vi-VN') + ' MHz (yêu cầu ' + svcJobNow.reqScore.toLocaleString('vi-VN') + ' điểm / ' + svcJobNow.reqClock.toLocaleString('vi-VN') + ' MHz).', 'gold');
       }
       const isRecord = !svcJobNow && score > S.bestScore;
       const gain = svcJobNow ? 0 : isRecord ? Math.round((score - S.bestScore) * 0.6) : Math.round(score * 0.02);
@@ -2128,11 +2131,35 @@
     /* Ngân sách/yêu cầu từng hạng khách đã cân theo giá & điểm thật trong CATALOG:
        hạng nào cũng có bộ linh kiện mở khóa ở cấp tương ứng lắp được trong ngân sách */
     const SVC_TIERS = {
+      0:{ budget:[0,0],              score:[0,0],         clock:[0,0],     temp:[0,0],   days:[2,3], label:'Khởi nghiệp' },
       1:{ budget:[6000000,10000000],  score:[3600,4600],   clock:[3600,4000], temp:[90,95], days:[3,5], label:'Khách bình dân' },
       2:{ budget:[14000000,24000000], score:[6500,9000],   clock:[4200,4800], temp:[85,90], days:[4,6], label:'Khách tầm trung' },
       3:{ budget:[28000000,45000000], score:[11000,15000], clock:[4800,5400], temp:[82,88], days:[5,7], label:'Khách khó tính' },
       4:{ budget:[60000000,95000000], score:[16000,21500], clock:[5200,5800], temp:[78,85], days:[6,8], label:'Khách VIP / thi đấu' },
     };
+    /* ---------- HẠNG KHỞI NGHIỆP (tier 0) — việc cho người mới ----------
+       Khách MANG MÁY CỦA HỌ tới xưởng: chỉ thuê ép xung & tối ưu, hoặc
+       thay keo tản nhiệt & vệ sinh. Không ngân sách linh kiện, KHÔNG tốn
+       tiền ứng trước — thù lao nhỏ 200.000–800.000 ₫, hạn 2–3 ngày, uy
+       tín tăng ít. Máy khách là cấu hình dựng sẵn tương thích sẵn (các
+       bộ dưới đây đều khớp socket/bus RAM), khi nhận việc game tự sinh
+       linh kiện của khách (đánh dấu custRig) đưa thẳng vào "bộ máy" của
+       việc; giao/hủy/quá hạn thì máy theo khách về, không ở lại Kho. */
+    const SVC_STARTER_RIGS = [
+      { cpu:'i3-10100f', gpu:'gt1030',   ram:'d4-2666', board:'h510m', psu:'psu450', cooler:'stock'  },
+      { cpu:'i3-10100f', gpu:'gt1030',   ram:'d4-3200', board:'h510m', psu:'psu450', cooler:'tower4' },
+      { cpu:'r5-5600',   gpu:'gtx1660s', ram:'d4-3200', board:'b550m', psu:'psu450', cooler:'tower4' },
+      { cpu:'r5-5600',   gpu:'gt1030',   ram:'d4-3200', board:'b550m', psu:'psu450', cooler:'stock'  },
+    ];
+    const SVC_STARTER_NEEDS_OC = [
+      { t:'Ép xung máy sẵn có', note:'Máy của khách đang chạy ì ạch, muốn ép xung cho mượt hơn mà không thay linh kiện.' },
+      { t:'Tối ưu máy chơi game', note:'Khách mang máy tới nhờ chỉnh xung/volt cho FPS cao và ổn định hơn.' },
+      { t:'Tinh chỉnh máy làm việc', note:'Máy sẵn có của khách, chỉ cần ép nhẹ và tối ưu cho mát, bền, không crash.' },
+    ];
+    const SVC_STARTER_NEEDS_REPASTE = [
+      { t:'Thay keo tản nhiệt & vệ sinh', note:'Máy chạy nóng và kêu to — thay keo, thổi bụi, chỉnh lại volt/xung cho mát và ổn định.' },
+      { t:'Vệ sinh & hạ nhiệt máy', note:'Keo tản nhiệt đã khô, máy nóng bất thường — vệ sinh toàn bộ và căn lại thông số.' },
+    ];
     const svcPick = arr => arr[Math.floor(Math.random() * arr.length)];
     const svcRndi = (a, b) => Math.round(a + Math.random() * (b - a));
     function svcDefaults(){ return { rep:50, seq:0, waiting:[], active:[], history:[], totalEarned:0, jobsDone:0, loadedJobId:null, stash:null }; }
@@ -2142,7 +2169,44 @@
       if (S.service && S.service.rep < 25) t = 1; /* uy tín quá thấp: khách xịn không dám giao máy */
       return t;
     }
+    /* Người chơi mới (uy tín < 25 hoặc cấp ≤ 2) luôn được đảm bảo có
+       khách Khởi nghiệp để làm quen & tích vốn */
+    function svcNeedsStarter(){ return !!S.service && (S.service.rep < 25 || levelOf(S.xp) <= 2); }
+    function genStartupOffer(){
+      const kind = Math.random() < 0.5 ? 'oc' : 'repaste';
+      /* Việc thay keo chỉ dùng bộ máy tản stock (máy nóng sẵn); việc ép xung dùng mọi bộ */
+      const rigPool = kind === 'repaste' ? SVC_STARTER_RIGS.filter(r => r.cooler === 'stock') : SVC_STARTER_RIGS;
+      const rig = svcPick(rigPool);
+      const cpuIt = itemOf('cpu', rig.cpu);
+      const need = svcPick(kind === 'oc' ? SVC_STARTER_NEEDS_OC : SVC_STARTER_NEEDS_REPASTE);
+      return {
+        id: 'o' + (++S.service.seq), name: svcPick(SVC_NAMES), need: need.t, needNote: need.note, tier: 0, kind,
+        budget: 0, fee: Math.round(svcRndi(200000, 800000) / 10000) * 10000,
+        repGain: svcRndi(1, 2), repLoss: 2,
+        reqScore: 0, /* việc khởi nghiệp không yêu cầu điểm Benchmark, chỉ yêu cầu xung + nhiệt */
+        reqClock: kind === 'oc' ? Math.round(svcRndi(cpuIt.baseFreq + 300, cpuIt.baseFreq + 500) / 100) * 100 : 0,
+        maxTemp: kind === 'oc' ? svcRndi(78, 86) : svcRndi(66, 72),
+        days: svcRndi(2, 3), waitLeft: svcRndi(2, 4),
+        rig: Object.assign({}, rig),
+      };
+    }
+    /* Bồi thường quá hạn: việc build tính 20% ngân sách, việc khởi
+       nghiệp (không có ngân sách) tính 20% thù lao — đều nhỏ và rõ ràng */
+    function svcComp(job){ return Math.round((job.tier === 0 ? job.fee : job.budget) * 0.20 / 1000) * 1000; }
+    /* Nạp lại danh sách khách chờ tới đủ 3 người; người mới luôn có
+       ít nhất 1 khách Khởi nghiệp trong số đó */
+    function svcRefillWaiting(){
+      const sv = S.service;
+      while (sv.waiting.length < 3) sv.waiting.push(genOffer());
+      if (svcNeedsStarter() && sv.waiting.length && !sv.waiting.some(o => o.tier === 0)){
+        sv.waiting[sv.waiting.length - 1] = genStartupOffer();
+      }
+    }
     function genOffer(){
+      /* Khách Khởi nghiệp: người mới gặp thường xuyên, càng lên cấp &
+         uy tín cao càng ít dần, nhường chỗ cho khách build máy lớn */
+      const pStart = svcNeedsStarter() ? 0.45 : (levelOf(S.xp) <= 4 ? 0.15 : 0.06);
+      if (Math.random() < pStart) return genStartupOffer();
       const cap = svcTierCap();
       const tier = cap > 1 && Math.random() < 0.35 ? cap - 1 : cap;
       const T = SVC_TIERS[tier];
@@ -2169,8 +2233,9 @@
       if (typeof sv.totalEarned !== 'number') sv.totalEarned = 0;
       if (typeof sv.jobsDone !== 'number') sv.jobsDone = 0;
       if (typeof S.day !== 'number' || S.day < 1) S.day = 1;
-      while (sv.waiting.length < 3) sv.waiting.push(genOffer());
+      svcRefillWaiting(); /* khách chờ cũ được thay dần theo luật sinh khách mới (gồm đảm bảo khách Khởi nghiệp cho người mới) */
       sv.active.forEach(j => {
+        if (!j.kind) j.kind = 'build'; /* việc từ bản lưu cũ đều là việc build máy */
         if (!j.build) j.build = { cpu:null, gpu:null, ram:null, board:null, psu:null, cooler:null };
         Object.keys(j.build).forEach(cat => { if (j.build[cat] && !instOf(j.build[cat])) j.build[cat] = null; });
       });
@@ -2258,6 +2323,7 @@
       return false;
     }
     function svcEstimateCost(req){
+      if (req.tier === 0) return { cost: 0 }; /* việc khởi nghiệp: khách mang máy sẵn tới, ứng trước = 0 ₫ */
       const spareSig = S.inventory.map(i => i.uid + ':' + i.itemId + ':' + (i.broken ? 1 : 0)).join(',') +
         '|eq' + Object.values(S.equipped).join(',') +
         '|busy' + (S.service ? S.service.active.map(j => Object.values(j.build || {}).filter(Boolean).join('-')).join(',') : '');
@@ -2290,6 +2356,7 @@
        bản lưu cũ (chưa có mốc kiểm kê lúc nhận) tính theo giá trị
        linh kiện đang lắp cho khách. */
     function svcJobSpent(job){
+      if (job.tier === 0) return 0; /* việc khởi nghiệp dùng máy của khách — bạn không chi đồng nào cho linh kiện */
       let sum = 0;
       const owned = Array.isArray(job.ownedAtAccept) ? job.ownedAtAccept : null;
       Object.keys(job.build).forEach(cat => {
@@ -2327,6 +2394,34 @@
       if (idx < 0) return;
       if (sv.active.length >= 3){ toast('Bạn đang nhận tối đa 3 việc cùng lúc — giao hoặc hủy bớt một việc đã.', 'err'); sndErr(); return; }
       const o = sv.waiting.splice(idx, 1)[0];
+      if (o.tier === 0 && o.rig){
+        /* Việc khởi nghiệp: game tự sinh máy của khách (linh kiện đánh
+           dấu custRig, không phải đồ của bạn), lắp sẵn nguyên bộ tương
+           thích — bạn chỉ việc đưa lên bàn test, ép xung/test rồi giao */
+        const build = {};
+        ['cpu','gpu','ram','board','psu','cooler'].forEach(cat => {
+          const inst = mkInstance(cat, o.rig[cat]); inst.custRig = o.id;
+          S.inventory.push(inst); build[cat] = inst.uid;
+        });
+        const cpuIt = itemOf('cpu', o.rig.cpu), ramIt = itemOf('ram', o.rig.ram);
+        const oc = defaultOC(cpuIt, ramIt);
+        if (o.kind === 'repaste'){
+          /* Máy tới xưởng trong tình trạng bị chỉnh ẩu: xung cao mà volt
+             thừa nhiều nên rất nóng — thay keo xong vẫn phải căn lại
+             volt/xung cho mát mà vẫn ổn định mới đạt yêu cầu nhiệt */
+          oc.mult += 3;
+          oc.vcore = Math.round(Math.min(itemOf('board', o.rig.board).maxV, cpuIt.baseV + 0.22) * 1000) / 1000;
+        }
+        sv.active.push(Object.assign({}, o, {
+          acceptedDay: S.day, deadlineDay: S.day + o.days,
+          build, oc, benchBest: 0, benchClock: 0, stressOk: false, stressPeak: null,
+          estCost: 0, ownedAtAccept: S.inventory.map(i => i.uid),
+        }));
+        svcRefillWaiting();
+        toast('🤝 Đã nhận việc khởi nghiệp của ' + o.name + ' — máy của khách đã có sẵn trong xưởng, không cần mua linh kiện. Hạn giao: hết ngày ' + (S.day + o.days) + '. Đưa máy khách lên bàn test ngay trong tab Dịch Vụ để bắt đầu.', 'gold');
+        sndOk(); saveGame(true); renderService(); renderHUD();
+        return;
+      }
       const est = svcEstimateCost(o);
       sv.active.push(Object.assign({}, o, {
         acceptedDay: S.day, deadlineDay: S.day + o.days,
@@ -2335,7 +2430,7 @@
         estCost: est ? est.cost : null, /* chi phí ứng trước ước tính tại thời điểm nhận việc */
         ownedAtAccept: S.inventory.map(i => i.uid), /* mốc kiểm kê Kho lúc nhận việc, để tính tiền đã chi thực tế */
       }));
-      sv.waiting.push(genOffer());
+      svcRefillWaiting();
       toast('🤝 Đã nhận việc của ' + o.name + ' — hạn giao: hết ngày ' + (S.day + o.days) + '. Lắp linh kiện cho khách ngay trong tab Dịch Vụ.');
       sndOk(); saveGame(true); renderService(); renderHUD();
     }
@@ -2344,11 +2439,12 @@
       const idx = sv.waiting.findIndex(o => o.id === offerId);
       if (idx < 0) return;
       const o = sv.waiting.splice(idx, 1)[0];
-      sv.waiting.push(genOffer());
+      svcRefillWaiting();
       toast('Đã từ chối khách ' + o.name + ' — một khách mới đã tới xưởng.');
       sndClick(); saveGame(true); renderService();
     }
     function svcAssign(job, cat, uid){
+      if (job.tier === 0){ toast('Đây là máy khách mang tới — linh kiện cố định sẵn, không thay được. Bạn chỉ ép xung và test trên máy này.', 'err'); sndErr(); return; }
       if (S.service.loadedJobId === job.id){ toast('Máy khách đang trên bàn test — bấm "Trả máy xuống" trước khi thay linh kiện.', 'err'); sndErr(); return; }
       if (uid){
         const inst = instOf(uid);
@@ -2413,6 +2509,14 @@
     }
     function svcMissing(job){
       const miss = [];
+      if (job.tier === 0){
+        /* Việc khởi nghiệp: máy khách có sẵn — ép xung chỉ cần xung +
+           stress mát; thay keo chỉ cần stress đạt trần nhiệt */
+        if (job.kind === 'oc' && job.benchClock < job.reqClock) miss.push('xung CPU khi benchmark ' + job.benchClock.toLocaleString('vi-VN') + ' MHz < mục tiêu ' + job.reqClock.toLocaleString('vi-VN') + ' MHz');
+        if (!job.stressOk) miss.push('chưa qua Stress Test 10 giây trên máy khách');
+        else if (job.stressPeak !== null && job.stressPeak > job.maxTemp) miss.push('nhiệt đỉnh khi stress ' + Math.round(job.stressPeak) + '°C > mức tối đa khách cho phép ' + job.maxTemp + '°C');
+        return miss;
+      }
       if (!svcBuildComplete(job)) miss.push('chưa lắp đủ 6 loại linh kiện');
       if (job.benchBest < job.reqScore) miss.push('điểm Benchmark ' + job.benchBest.toLocaleString('vi-VN') + ' < yêu cầu ' + job.reqScore.toLocaleString('vi-VN'));
       if (job.benchClock < job.reqClock) miss.push('xung CPU khi benchmark ' + job.benchClock.toLocaleString('vi-VN') + ' MHz < mục tiêu ' + job.reqClock.toLocaleString('vi-VN') + ' MHz');
@@ -2424,30 +2528,44 @@
       const miss = svcMissing(job);
       if (miss.length){ toast('Chưa giao được, khách sẽ không trả tiền — còn thiếu: ' + miss.join('; ') + '.', 'err'); sndErr(); return; }
       const sv = S.service;
+      const starter = job.tier === 0;
+      const pay = starter ? job.fee : job.budget + job.fee; /* khởi nghiệp: khách chỉ trả thù lao, máy là của khách */
       askConfirm('Giao máy cho ' + job.name + '?',
-        'Khách thanh toán: ngân sách linh kiện ' + fmt(job.budget) + ' + thù lao ' + fmt(job.fee) + ' = ' + fmt(job.budget + job.fee) + '.\n' +
-        'Linh kiện đã lắp cho khách sẽ theo khách về (rời khỏi Kho của bạn). Uy tín +' + job.repGain + ', +' + (30 + job.tier * 20) + ' XP.',
+        starter
+          ? 'Khách thanh toán thù lao ' + fmt(job.fee) + ' (việc khởi nghiệp không có ngân sách linh kiện — máy là của khách mang tới).\n' +
+            'Máy của khách sẽ được trả lại cho khách. Uy tín +' + job.repGain + ', +' + (30 + job.tier * 20) + ' XP.'
+          : 'Khách thanh toán: ngân sách linh kiện ' + fmt(job.budget) + ' + thù lao ' + fmt(job.fee) + ' = ' + fmt(job.budget + job.fee) + '.\n' +
+            'Linh kiện đã lắp cho khách sẽ theo khách về (rời khỏi Kho của bạn). Uy tín +' + job.repGain + ', +' + (30 + job.tier * 20) + ' XP.',
         () => {
           if (sv.loadedJobId === job.id){ S.equipped = sv.stash.equipped; S.oc = sv.stash.oc; sv.stash = null; sv.loadedJobId = null; sim.cpuTemp = 34; sim.gpuTemp = 33; }
           const uids = Object.values(job.build).filter(Boolean);
           S.inventory = S.inventory.filter(i => !uids.includes(i.uid));
-          S.money += job.budget + job.fee;
-          sv.totalEarned += job.budget + job.fee; sv.jobsDone++;
+          S.money += pay;
+          sv.totalEarned += pay; sv.jobsDone++;
           sv.rep = clamp(sv.rep + job.repGain, 0, 100);
-          sv.history.unshift({ name: job.name, need: job.need, result: 'Đã giao đúng hạn', gain: job.budget + job.fee, day: S.day });
+          sv.history.unshift({ name: job.name, need: job.need, result: 'Đã giao đúng hạn', gain: pay, day: S.day });
           sv.history = sv.history.slice(0, 12);
           sv.active = sv.active.filter(j => j.id !== job.id);
           gainXP(30 + job.tier * 20);
-          toast('🎉 Đã giao máy cho ' + job.name + ': nhận ' + fmt(job.budget + job.fee) + ', uy tín +' + job.repGain + '.', 'gold');
+          toast('🎉 Đã giao máy cho ' + job.name + ': nhận ' + fmt(pay) + ', uy tín +' + job.repGain + '.', 'gold');
           sndCoin(); markApplied(); saveGame(true); refreshAll();
         });
     }
+    /* Máy của khách (việc khởi nghiệp) rời xưởng khi hủy/quá hạn:
+       xóa hẳn linh kiện custRig của việc khỏi Kho, khách mang máy về */
+    function svcRemoveCustRig(job){
+      if (job.tier !== 0) return;
+      S.inventory = S.inventory.filter(i => i.custRig !== job.id);
+    }
     function svcCancel(job){
       askConfirm('Hủy việc của ' + job.name + '?',
-        'Toàn bộ linh kiện đã lắp cho khách sẽ được trả lại Kho (chúng vẫn nằm trong Kho, chỉ bỏ giữ chỗ). Bạn không nhận thù lao, không bị trừ uy tín — chỉ mất thời gian đã bỏ ra.',
+        job.tier === 0
+          ? 'Khách sẽ mang máy của họ về. Bạn không nhận thù lao, không bị trừ uy tín — chỉ mất thời gian đã bỏ ra.'
+          : 'Toàn bộ linh kiện đã lắp cho khách sẽ được trả lại Kho (chúng vẫn nằm trong Kho, chỉ bỏ giữ chỗ). Bạn không nhận thù lao, không bị trừ uy tín — chỉ mất thời gian đã bỏ ra.',
         () => {
           const sv = S.service;
           if (sv.loadedJobId === job.id) svcUnloadRig(true);
+          svcRemoveCustRig(job);
           sv.active = sv.active.filter(j => j.id !== job.id);
           sv.history.unshift({ name: job.name, need: job.need, result: 'Đã hủy việc', gain: 0, day: S.day });
           sv.history = sv.history.slice(0, 12);
@@ -2458,14 +2576,15 @@
     function svcExpireJob(job){
       const sv = S.service;
       if (sv.loadedJobId === job.id) svcUnloadRig(true);
-      const comp = Math.round(job.budget * 0.20 / 1000) * 1000;
+      const comp = svcComp(job); /* build: 20% ngân sách · khởi nghiệp: 20% thù lao */
       const paid = Math.min(S.money, comp);
       S.money -= paid;
       sv.rep = clamp(sv.rep - job.repLoss, 0, 100);
+      svcRemoveCustRig(job);
       sv.active = sv.active.filter(j => j.id !== job.id);
       sv.history.unshift({ name: job.name, need: job.need, result: 'Quá hạn giao — bồi thường ' + fmt(paid), gain: -paid, day: S.day });
       sv.history = sv.history.slice(0, 12);
-      toast('⏰ Quá hạn giao máy cho ' + job.name + '! Bồi thường ' + fmt(paid) + ', uy tín −' + job.repLoss + '. Linh kiện đã trả lại Kho.', 'err');
+      toast('⏰ Quá hạn giao máy cho ' + job.name + '! Bồi thường ' + fmt(paid) + ', uy tín −' + job.repLoss + '.' + (job.tier === 0 ? ' Khách đã mang máy về.' : ' Linh kiện đã trả lại Kho.'), 'err');
       sndErr(); saveGame(true);
     }
     function svcAdvanceDay(){
@@ -2474,17 +2593,39 @@
       sv.waiting.forEach(o => o.waitLeft--);
       sv.waiting.filter(o => o.waitLeft <= 0).forEach(o => toast('🚶 Khách ' + o.name + ' chờ quá lâu nên đã bỏ đi — khách mới sẽ tới thay.'));
       sv.waiting = sv.waiting.filter(o => o.waitLeft > 0);
-      while (sv.waiting.length < 3) sv.waiting.push(genOffer());
+      svcRefillWaiting();
       sv.active.slice().forEach(j => { if (S.day > j.deadlineDay) svcExpireJob(j); });
       if (sv.active.length) toast('📅 Sang ngày ' + S.day + ' — kiểm tra hạn giao trong tab Dịch Vụ.');
       saveGame(true); renderHUD();
       if ($('tab-service').classList.contains('on')) renderService();
     }
     function svcChk(ok, text){ return '<li>' + (ok ? '<span class="ok">✔</span> ' : '<span class="bad">✘</span> ') + text + '</li>'; }
+    function svcRigSummary(rig){
+      return ['cpu','gpu','ram','board','cooler'].map(cat => itemOf(cat, rig[cat]).name).join(' · ');
+    }
     function svcOfferCard(o){
+      const card = document.createElement('div'); card.className = 'card';
+      if (o.tier === 0){
+        /* Thẻ khách Khởi nghiệp: máy khách mang tới, ứng trước 0 ₫ */
+        card.innerHTML =
+          '<div class="rowflex" style="justify-content:space-between"><b style="color:#fff;font-size:16px">' + o.name + '</b><span class="tag" style="color:var(--green);border-color:var(--green)">🌱 Khởi nghiệp</span></div>' +
+          '<div style="margin:4px 0"><span class="tag eq">' + o.need + '</span> <span class="muted" style="font-size:13px">' + o.needNote + '</span></div>' +
+          kv('Loại việc', o.kind === 'oc' ? 'Ép xung & tối ưu máy khách mang tới' : 'Thay keo tản nhiệt & vệ sinh máy') +
+          kv('Máy của khách', '<span style="font-size:13px">' + svcRigSummary(o.rig) + '</span>') +
+          kv('Thù lao của bạn', '<b style="color:var(--amber)">' + fmt(o.fee) + '</b>') +
+          (o.kind === 'oc' ? kv('Xung CPU mục tiêu', '≥ ' + o.reqClock.toLocaleString('vi-VN') + ' MHz (đo khi Benchmark)') : '') +
+          kv('Nhiệt tối đa khi stress', '≤ ' + o.maxTemp + ' °C') +
+          kv('Hạn giao', o.days + ' ngày kể từ khi nhận') +
+          kv('Uy tín nếu giao tốt', '+' + o.repGain) +
+          '<div class="alert g" style="margin:6px 0 8px">✅ Không cần ứng trước: khách mang máy sẵn tới xưởng, bạn không phải mua linh kiện nào. Đưa máy khách lên bàn test, ép xung / test bằng đúng các tab hiện tại rồi giao máy nhận thù lao.</div>' +
+          '<div class="muted" style="font-size:12.5px;margin:6px 0">Khách sẽ bỏ đi sau ' + o.waitLeft + ' ngày nữa nếu bạn không nhận việc.</div>' +
+          '<div class="rowflex"><button class="small primary acc">🤝 Nhận việc</button><button class="small rej">Từ chối</button></div>';
+        card.querySelector('.acc').addEventListener('click', () => svcAccept(o.id));
+        card.querySelector('.rej').addEventListener('click', () => svcReject(o.id));
+        return card;
+      }
       const est = svcEstimateCost(o);
       const short = est && S.money < est.cost;
-      const card = document.createElement('div'); card.className = 'card';
       card.innerHTML =
         '<div class="rowflex" style="justify-content:space-between"><b style="color:#fff;font-size:16px">' + o.name + '</b><span class="tag">' + SVC_TIERS[o.tier].label + '</span></div>' +
         '<div style="margin:4px 0"><span class="tag eq">' + o.need + '</span> <span class="muted" style="font-size:13px">' + o.needNote + '</span></div>' +
@@ -2514,6 +2655,38 @@
       const daysLeft = job.deadlineDay - S.day;
       const built = ['cpu','gpu','ram','board','psu','cooler'].filter(cat => job.build[cat]).length;
       const card = document.createElement('div'); card.className = 'card mb' + (loaded ? ' svcloaded' : '');
+      if (job.tier === 0){
+        /* Thẻ việc Khởi nghiệp: máy khách lắp sẵn, không có mục chọn
+           linh kiện — chỉ bàn test, ép xung/test và giao máy */
+        const rigNames = ['cpu','gpu','ram','board','psu','cooler'].map(cat => {
+          const inst = job.build[cat] ? instOf(job.build[cat]) : null;
+          return inst ? itemOf(cat, inst.itemId).name : '—';
+        }).join(' · ');
+        let html =
+          '<div class="rowflex" style="justify-content:space-between"><b style="color:#fff;font-size:16px">🌱 ' + job.name + ' — ' + job.need + '</b>' +
+          '<span class="tag" style="' + (daysLeft <= 0 ? 'color:var(--red);border-color:var(--red)' : daysLeft <= 2 ? 'color:var(--yellow);border-color:var(--yellow)' : '') + '">⏰ ' + (daysLeft > 0 ? 'Còn ' + daysLeft + ' ngày (hạn: hết ngày ' + job.deadlineDay + ')' : 'HẠN CHÓT HÔM NAY (ngày ' + job.deadlineDay + ')') + '</span></div>' +
+          kv('Loại việc', job.kind === 'oc' ? 'Ép xung & tối ưu máy khách mang tới' : 'Thay keo tản nhiệt & vệ sinh máy') +
+          kv('Nhận việc ngày', job.acceptedDay + ' · Hạn giao: hết ngày ' + job.deadlineDay) +
+          kv('Máy của khách', '<span style="font-size:13px">' + rigNames + '</span>') +
+          kv('Khách trả khi giao đạt yêu cầu', fmt(job.fee) + ' thù lao · Uy tín +' + job.repGain) +
+          kv('Tiền bạn đã chi cho việc này', '<b style="color:var(--green)">0 ₫</b> — máy và linh kiện là của khách, bạn không ứng trước đồng nào');
+        if (loaded) html += '<div class="alert y">🔧 Máy này đang trên bàn test — sang tab Ép Xung để chỉnh, rồi chạy Benchmark / Stress Test.</div>';
+        html += '<h3 style="margin-top:10px">Tiến độ yêu cầu của khách</h3><ul class="svcchk">' +
+          (job.kind === 'oc' ? svcChk(job.benchClock >= job.reqClock, 'Xung CPU khi benchmark: ' + job.benchClock.toLocaleString('vi-VN') + ' / ' + job.reqClock.toLocaleString('vi-VN') + ' MHz') : '') +
+          svcChk(job.stressOk && job.stressPeak !== null && job.stressPeak <= job.maxTemp, 'Stress Test 10 giây: ' + (job.stressOk ? 'đã QUA — nhiệt đỉnh ' + Math.round(job.stressPeak) + '°C / tối đa cho phép ' + job.maxTemp + '°C' : 'chưa qua trên máy khách')) +
+          '</ul>' +
+          '<div class="rowflex">' +
+          (loaded ? '<button class="small unload">⬇ Trả máy xuống (về máy của bạn)</button>' : '<button class="small primary load"' + (otherLoaded ? ' disabled title="Đang có máy khách khác trên bàn test"' : '') + '>🔧 Đưa máy khách lên bàn test</button>') +
+          '<button class="small primary deliver">🎁 Giao máy &amp; nhận ' + fmt(job.fee) + '</button>' +
+          '<button class="small danger cancel">Hủy việc</button></div>' +
+          '<div class="muted" style="font-size:12.5px;margin-top:6px">Quy trình: đưa máy khách lên bàn test → tab Ép Xung chỉnh xung/volt → chạy ' + (job.kind === 'oc' ? 'Benchmark (đạt xung mục tiêu) và ' : '') + 'Stress Test 10 giây (đạt trần nhiệt) — kết quả tự ghi vào việc này, không tính vào kỷ lục của bạn → quay lại đây bấm Giao máy. Linh kiện là của khách nên không thay được và sẽ theo khách về khi giao. Quá hạn giao: bồi thường ' + fmt(svcComp(job)) + ' (20% thù lao) và uy tín −' + job.repLoss + '.</div>';
+        card.innerHTML = html;
+        const lb2 = card.querySelector('.load'); if (lb2) lb2.addEventListener('click', () => svcLoadRig(job));
+        const ub2 = card.querySelector('.unload'); if (ub2) ub2.addEventListener('click', () => svcUnloadRig(false));
+        card.querySelector('.deliver').addEventListener('click', () => svcDeliver(job));
+        card.querySelector('.cancel').addEventListener('click', () => svcCancel(job));
+        return card;
+      }
       let html =
         '<div class="rowflex" style="justify-content:space-between"><b style="color:#fff;font-size:16px">🧑 ' + job.name + ' — ' + job.need + '</b>' +
         '<span class="tag" style="' + (daysLeft <= 0 ? 'color:var(--red);border-color:var(--red)' : daysLeft <= 2 ? 'color:var(--yellow);border-color:var(--yellow)' : '') + '">⏰ ' + (daysLeft > 0 ? 'Còn ' + daysLeft + ' ngày (hạn: hết ngày ' + job.deadlineDay + ')' : 'HẠN CHÓT HÔM NAY (ngày ' + job.deadlineDay + ')') + '</span></div>' +
@@ -2557,7 +2730,7 @@
       const sv = S.service;
       $('svcSummary').innerHTML = '<div class="card"><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' +
         '<div class="gauge"><div class="lbl">Ngày hiện tại</div><div class="val">' + S.day + '</div><div class="sub">1 ngày = ' + DAY_SECONDS + ' giây chơi</div></div>' +
-        '<div class="gauge"><div class="lbl">Uy tín</div><div class="val" style="color:' + (sv.rep >= 60 ? 'var(--green)' : sv.rep >= 30 ? 'var(--yellow)' : 'var(--red)') + '">' + sv.rep + '<small> / 100</small></div><div class="sub">' + (sv.rep < 25 ? 'Dưới 25: chỉ còn khách bình dân dám tới' : 'Giao tốt tăng uy tín, quá hạn trừ nặng') + '</div></div>' +
+        '<div class="gauge"><div class="lbl">Uy tín</div><div class="val" style="color:' + (sv.rep >= 60 ? 'var(--green)' : sv.rep >= 30 ? 'var(--yellow)' : 'var(--red)') + '">' + sv.rep + '<small> / 100</small></div><div class="sub">' + (sv.rep < 25 ? 'Dưới 25: khách xịn chưa dám tới — chủ yếu khách Khởi nghiệp & bình dân' : 'Giao tốt tăng uy tín, quá hạn trừ nặng') + '</div></div>' +
         '<div class="gauge"><div class="lbl">Việc đã giao</div><div class="val">' + sv.jobsDone + '</div><div class="sub">Đang nhận ' + sv.active.length + ' / 3 việc</div></div>' +
         '<div class="gauge"><div class="lbl">Tổng thu dịch vụ</div><div class="val" style="color:var(--amber);font-size:19px">' + fmt(sv.totalEarned) + '</div><div class="sub">Ngân sách + thù lao đã nhận</div></div>' +
         '</div><div class="svcbar" style="margin-top:10px"><i style="width:' + sv.rep + '%"></i></div></div>';
