@@ -264,6 +264,16 @@
       @media (prefers-reduced-motion: reduce){
         #rigSvg .fanblades, #rigSvg .rgbbars, #rigSvg .heatpulse, #rigSvg .vapor, .hero .cap .live::before{ animation:none; }
       }
+      /* ---------- Dịch Vụ (build & ép xung thuê) ---------- */
+      .svcgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+      @media (max-width:560px){ .svcgrid{ grid-template-columns:1fr; } }
+      .svcchk{ list-style:none; margin:6px 0 10px; padding:0; }
+      .svcchk li{ padding:4px 0; border-bottom:1px dashed #1d2637; font-size:13.5px; }
+      .svcchk li:last-child{ border-bottom:none; }
+      .svcbar{ height:9px; background:#0a0e16; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+      .svcbar i{ display:block; height:100%; background:var(--cyan); transition:width .4s; }
+      select.svcsel{ width:100%; margin:2px 0 4px; }
+      .svcloaded{ border-color:var(--amber) !important; box-shadow:inset 0 0 0 1px var(--amber); }
     </style>
   </head>
   <body>
@@ -275,6 +285,8 @@
       </div>
       <div class="stat"><span>Tiền</span><b id="hudMoney">0 ₫</b></div>
       <div class="stat"><span>Cấp độ</span><b id="hudLevel">1</b></div>
+      <div class="stat"><span>Ngày</span><b id="hudDay">1</b></div>
+      <div class="stat"><span>Uy tín dịch vụ</span><b id="hudRep" style="color:var(--cyan)">50</b></div>
       <div class="stat"><span>Danh hiệu</span><b id="hudRank" style="color:var(--cyan)">Nghiệp Dư</b></div>
       <div class="xpwrap">
         <div class="stat" style="margin-bottom:3px"><span style="display:inline">Kinh nghiệm</span> <b id="hudXpText" style="font-size:12px;color:var(--mut)">0 XP</b></div>
@@ -298,6 +310,7 @@
       <button data-tab="inv">Kho Linh Kiện</button>
       <button data-tab="missions">Nhiệm Vụ</button>
       <button data-tab="ach">Thành Tích</button>
+      <button data-tab="service">Dịch Vụ</button>
     </nav>
 
     <main>
@@ -683,6 +696,20 @@
         <h2>Thành tích</h2>
         <div class="grid" id="achGrid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))"></div>
       </section>
+
+      <!-- ================= SERVICE ================= -->
+      <section class="tab" id="tab-service">
+        <h2>Dịch vụ — Build máy &amp; ép xung thuê</h2>
+        <p class="muted">Nhận build máy và ép xung thuê cho khách hàng tìm tới xưởng. Cách làm: <b>Nhận việc</b> → lắp linh kiện cho khách ngay tại tab này (dùng đồ trong Kho hoặc mua thêm ở Cửa Hàng bằng tiền của bạn) → <b>đưa máy khách lên bàn test</b> → ép xung bằng đúng các tab Ép Xung / Benchmark / Stress Test như máy của bạn → đạt đủ yêu cầu thì <b>Giao máy</b>: khách trả lại toàn bộ <b>ngân sách linh kiện</b> cộng thêm <b>thù lao</b>, linh kiện đã lắp theo khách về, uy tín tăng. Giao máy chưa đạt yêu cầu thì không được nhận tiền. <b>Quá hạn giao</b>: mất uy tín và bồi thường 20% ngân sách cho khách. Hủy việc trước khi giao thì linh kiện được trả lại Kho, không mất uy tín. Thời gian trong game trôi theo ngày: <b>1 ngày = 60 giây chơi</b>; khách chờ quá lâu cũng sẽ bỏ đi. Tối đa 3 việc cùng lúc, luôn có 3 khách đang chờ.</p>
+        <div id="svcSummary" class="mb"></div>
+        <div id="svcLoaded"></div>
+        <h3>👥 Khách đang chờ</h3>
+        <div class="svcgrid mb" id="svcWaiting"></div>
+        <h3>🧰 Việc đang nhận</h3>
+        <div id="svcActive" class="mb"></div>
+        <h3>📜 Lịch sử dịch vụ</h3>
+        <div class="card" id="svcHistory"></div>
+      </section>
     </main>
 
     <!-- ================= FOOTER: DONATE + GÓP Ý ================= -->
@@ -825,7 +852,8 @@
       const eq = {}; inv.forEach(i => eq[i.cat] = i.uid);
       const cpuItem = itemOf('cpu','i3-10100f'), ramItem = itemOf('ram','d4-2666');
       return {
-        money: 2000000, xp: 0, bestScore: 0, sound: true,
+        money: 2000000, xp: 0, bestScore: 0, sound: true, day: 1,
+        service: svcDefaults(),
         inventory: inv, equipped: eq,
         oc: defaultOC(cpuItem, ramItem),
         claimedMissions: [], achievements: [],
@@ -1042,6 +1070,7 @@
         const data = JSON.parse(raw);
         if (!data || !data.inventory || !data.oc) throw new Error('bad');
         S = data; uidSeq = Math.max(0, ...S.inventory.map(i => i.uid)) + 1;
+        svcEnsure(); /* bản lưu cũ chưa có mục dịch vụ/ngày -> khởi tạo trống, giữ nguyên tiến trình */
         sim.cpuTemp = 34; sim.gpuTemp = 33; sim.activity = 'idle'; sim.stress = null; sim.bench = null;
         appliedOC = snapshotOC();
         refreshAll(); toast('Đã tải lại bản lưu.'); return true;
@@ -1050,7 +1079,7 @@
     $('btnSave').addEventListener('click', () => { saveGame(); sndClick(); });
     $('btnLoad').addEventListener('click', () => { loadGame(); sndClick(); });
     $('btnNew').addEventListener('click', () => askConfirm('Chơi mới?', 'Toàn bộ tiến trình hiện tại (tiền, linh kiện, cấp độ) sẽ bị xóa và bắt đầu lại từ đầu.', () => {
-      S = newGame(); localStorage.removeItem(SAVE_KEY); sim.cpuTemp = 34; sim.gpuTemp = 33; sim.activity = 'idle';
+      S = newGame(); svcEnsure(); localStorage.removeItem(SAVE_KEY); sim.cpuTemp = 34; sim.gpuTemp = 33; sim.activity = 'idle';
       appliedOC = snapshotOC();
       refreshAll(); toast('Đã bắt đầu game mới. Chúc ép xung vui vẻ!');
     }));
@@ -1067,6 +1096,7 @@
       if (b.dataset.tab === 'missions') renderMissions();
       if (b.dataset.tab === 'ach') renderAch();
       if (b.dataset.tab === 'inv') renderInv();
+      if (b.dataset.tab === 'service') renderService();
     }));
     function gotoTab(name){
       document.querySelectorAll('#tabNav button').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
@@ -1245,6 +1275,8 @@
     function meterColor(z){ return z === 'r' ? 'var(--red)' : z === 'y' ? 'var(--yellow)' : 'var(--green)'; }
     function renderHUD(){
       $('hudMoney').textContent = fmt(S.money);
+      if ($('hudDay')) $('hudDay').textContent = S.day || 1;
+      if ($('hudRep')) $('hudRep').textContent = S.service ? S.service.rep : 50;
       const lvl = levelOf(S.xp);
       $('hudLevel').textContent = lvl;
       $('hudRank').textContent = rankOf(lvl);
@@ -1537,7 +1569,7 @@
       if (pendS){ toast('Bạn có ' + pendS + ' thông số đã chỉnh nhưng chưa áp dụng — bấm nút "Áp dụng" ở thanh cố định dưới đáy màn hình trước khi stress test.', 'err'); sndErr(); return; }
       if (anyBroken()){ toast('Có linh kiện đã hỏng — sửa trong Kho trước khi stress test.', 'err'); return; }
       sim.activity = 'stress';
-      sim.stress = { elapsed: 0, dur: stressDur, errAcc: 0 };
+      sim.stress = { elapsed: 0, dur: stressDur, errAcc: 0, peak: 0 };
       samples.length = 0;
       S.stats.stressRuns++;
       $('btnStressStart').disabled = true; $('btnStressStop').disabled = false;
@@ -1552,7 +1584,16 @@
       $('stressProg').style.width = '0%';
       if (!manual && sim.activity !== 'crash'){ $('sStatus').textContent = 'Sẵn sàng'; $('sStatus').style.color = ''; }
     }
+    let lastStressPeak = null; /* nhiệt đỉnh của lần stress vừa qua — dùng ghi hồ sơ dịch vụ */
     function stressPass(dur){
+      /* Máy khách đang trên bàn test: qua stress 10s trở lên thì ghi vào hồ sơ việc */
+      const svcJobNow = svcLoadedJob();
+      if (svcJobNow && dur >= 10){
+        svcJobNow.stressOk = true;
+        svcJobNow.stressPeak = lastStressPeak !== null ? Math.round(lastStressPeak * 10) / 10 : Math.round(sim.cpuTemp);
+        saveGame(true);
+        toast('📋 Đã ghi vào việc của ' + svcJobNow.name + ': Stress Test QUA, nhiệt đỉnh ' + Math.round(svcJobNow.stressPeak) + '°C (khách cho phép tối đa ' + svcJobNow.maxTemp + '°C).', svcJobNow.stressPeak <= svcJobNow.maxTemp ? 'gold' : 'err');
+      }
       S.stats.stressPass++;
       S.stats.maxStressDur = Math.max(S.stats.maxStressDur, dur);
       if (dur >= 10) S.flags.passed10 = true;
@@ -1647,8 +1688,17 @@
     function benchDone(){
       const c = compute(1);
       const score = c.score;
-      const isRecord = score > S.bestScore;
-      const gain = isRecord ? Math.round((score - S.bestScore) * 0.6) : Math.round(score * 0.02);
+      /* Máy khách đang trên bàn test: điểm ghi vào hồ sơ việc dịch vụ,
+         KHÔNG tính kỷ lục / thưởng tiền của người chơi (tránh phá kinh tế game) */
+      const svcJobNow = svcLoadedJob();
+      if (svcJobNow){
+        svcJobNow.benchBest = Math.max(svcJobNow.benchBest, score);
+        svcJobNow.benchClock = Math.max(svcJobNow.benchClock, Math.round(c.freqEff));
+        saveGame(true);
+        toast('📋 Đã ghi vào việc của ' + svcJobNow.name + ': Benchmark ' + svcJobNow.benchBest.toLocaleString('vi-VN') + ' điểm, xung ' + svcJobNow.benchClock.toLocaleString('vi-VN') + ' MHz (yêu cầu ' + svcJobNow.reqScore.toLocaleString('vi-VN') + ' điểm / ' + svcJobNow.reqClock.toLocaleString('vi-VN') + ' MHz).', 'gold');
+      }
+      const isRecord = !svcJobNow && score > S.bestScore;
+      const gain = svcJobNow ? 0 : isRecord ? Math.round((score - S.bestScore) * 0.6) : Math.round(score * 0.02);
       S.money += gain; S.stats.benches++;
       if (isRecord) S.bestScore = score;
       S.stats.maxCpuFreq = Math.max(S.stats.maxCpuFreq, Math.round(c.freqEff));
@@ -1666,10 +1716,10 @@
         kv('Điểm GPU (' + Math.round(c.gpuCoreEff) + ' MHz)', Math.round(c.gpuScore).toLocaleString('vi-VN')) +
         kv('Điểm RAM (' + c.ramFreqEff + ' MHz CL' + S.oc.ramCL + ')', Math.round(c.ramScore).toLocaleString('vi-VN')) +
         kv('FPS ước tính', c.fps + ' FPS') +
-        kv('Thưởng', '+' + fmt(gain) + (isRecord ? ' (KỶ LỤC MỚI!)' : '')) +
+        (svcJobNow ? kv('Đang test cho khách', svcJobNow.name + ' — điểm ghi vào hồ sơ việc, không tính kỷ lục của bạn') : kv('Thưởng', '+' + fmt(gain) + (isRecord ? ' (KỶ LỤC MỚI!)' : ''))) +
         (c.throttleNote ? '<div class="alert y" style="margin-top:8px">⚠ ' + c.throttleNote + ' — điểm bị giảm. Hạ nhiệt để điểm cao hơn.</div>' : '');
       $('benchLive').textContent = 'Hoàn thành lúc ' + new Date().toLocaleTimeString('vi-VN') + '.' + binMsg;
-      toast(isRecord ? '🏆 KỶ LỤC MỚI: ' + score.toLocaleString('vi-VN') + ' điểm! +' + fmt(gain) : 'Benchmark xong: ' + score.toLocaleString('vi-VN') + ' điểm. +' + fmt(gain), isRecord ? 'gold' : '');
+      toast(svcJobNow ? 'Benchmark máy khách xong: ' + score.toLocaleString('vi-VN') + ' điểm.' : isRecord ? '🏆 KỶ LỤC MỚI: ' + score.toLocaleString('vi-VN') + ' điểm! +' + fmt(gain) : 'Benchmark xong: ' + score.toLocaleString('vi-VN') + ' điểm. +' + fmt(gain), isRecord ? 'gold' : '');
       if (isRecord) sndCoin(); else sndOk();
       $('btnBench').disabled = false; $('benchProg').style.width = '0%';
       sim.bench = null; sim.activity = 'idle';
@@ -1787,7 +1837,7 @@
         const incompat = (shopCat === 'cpu' || shopCat === 'ram') ? compatReason(shopCat, it, boardNow) : null;
         const swapWarns = shopCat === 'board' && !isEq ? boardSwapWarnings(it) : [];
         /* Trao đổi: món thừa (chưa lắp, khác model) có giá trị cao nhất cùng loại sẽ được thu lại */
-        const spares = S.inventory.filter(i => i.cat === shopCat && S.equipped[shopCat] !== i.uid && i.itemId !== it.id && sellValue(i) > 0)
+        const spares = S.inventory.filter(i => i.cat === shopCat && S.equipped[shopCat] !== i.uid && i.itemId !== it.id && sellValue(i) > 0 && !svcPartBusy(i.uid))
           .sort((a,b) => sellValue(b) - sellValue(a));
         const bestSpare = spares[0] || null;
         const tradeVal = bestSpare ? sellValue(bestSpare) : 0;
@@ -1914,6 +1964,8 @@
       return lines.join('\n');
     }
     function sellPart(inst){
+      const busySell = svcPartBusy(inst.uid);
+      if (busySell){ toast('⛔ Không bán được: ' + busySell + '.', 'err'); sndErr(); return; }
       const it = itemOf(inst.cat, inst.itemId);
       const val = sellValue(inst);
       askConfirm('Bán ' + it.name + '?', sellBreakdown(inst), () => {
@@ -1923,6 +1975,8 @@
       });
     }
     function tradeIn(cat, it, spare){
+      const busyTrade = svcPartBusy(spare.uid);
+      if (busyTrade){ toast('⛔ Không trao đổi được món đó: ' + busyTrade + '.', 'err'); sndErr(); return; }
       if (cat === 'cpu' || cat === 'ram'){
         const r = compatReason(cat, it, eqItem('board'));
         if (r){ toast('⛔ Không đổi được sang ' + it.name + ': ' + r + '.', 'err'); sndErr(); return; }
@@ -1951,7 +2005,7 @@
     const invOpen = { cpu:true, gpu:true, ram:true, board:true, psu:true, cooler:true };
     function renderInv(){
       const wrap = $('invList'); wrap.innerHTML = '';
-      const spares = S.inventory.filter(i => S.equipped[i.cat] !== i.uid && sellValue(i) > 0);
+      const spares = S.inventory.filter(i => S.equipped[i.cat] !== i.uid && sellValue(i) > 0 && !svcPartBusy(i.uid));
       const spareTotal = spares.reduce((s,i) => s + sellValue(i), 0);
       if (spares.length){
         const sum = document.createElement('div'); sum.className = 'card mb';
@@ -1983,6 +2037,7 @@
         items.forEach(inst => {
           const it = itemOf(cat, inst.itemId);
           const isEq = S.equipped[cat] === inst.uid;
+          const busy = svcPartBusy(inst.uid);
           const val = sellValue(inst);
           const repairCost = Math.round(it.price * 0.25);
           /* Chặn lắp món không tương thích với mainboard đang dùng (chỉ áp dụng cho lần lắp mới) */
@@ -1990,7 +2045,7 @@
           const swapWarns = !isEq && cat === 'board' ? boardSwapWarnings(it) : [];
           const card = document.createElement('div'); card.className = 'card item' + (isEq ? ' equipped' : '');
           card.innerHTML = '<div class="thumb">' + thumbSVG(cat, it) + '</div><div class="nm">' + it.name + '</div>' +
-            '<div>' + (isEq ? '<span class="tag eq">Đang lắp</span>' : '') + (inst.broken ? '<span class="tag" style="color:var(--red);border-color:var(--red)">ĐÃ HỎNG</span>' : '') + (incompat ? '<span class="tag no">⛔ Không tương thích với mainboard hiện tại</span>' : '') + '</div>' +
+            '<div>' + (isEq ? '<span class="tag eq">Đang lắp</span>' : '') + (busy && !isEq ? '<span class="tag" style="color:var(--cyan);border-color:var(--cyan)">🔧 ' + busy + '</span>' : '') + (inst.broken ? '<span class="tag" style="color:var(--red);border-color:var(--red)">ĐÃ HỎNG</span>' : '') + (incompat ? '<span class="tag no">⛔ Không tương thích với mainboard hiện tại</span>' : '') + '</div>' +
             '<div class="spec">' + specText(cat, it) + '</div>' +
             (incompat ? '<div class="compat-note">Không lắp được: ' + incompat + '.</div>' : '') +
             (swapWarns.length ? '<div class="compat-note">⚠ Nếu lắp mainboard này: ' + swapWarns.join(' ') + '</div>' : '') +
@@ -1998,12 +2053,13 @@
             '<div style="font-size:12.5px;color:var(--mut);margin-bottom:3px">Độ bền: ' + Math.round(inst.durability) + '%</div>' +
             '<div class="durbar" style="margin-bottom:9px"><i style="width:' + inst.durability + '%;background:' + (inst.durability > 50 ? 'var(--green)' : inst.durability > 25 ? 'var(--yellow)' : 'var(--red)') + '"></i></div>' +
             (isEq ? '<div class="sellinfo" style="color:var(--mut)">Đang lắp trong máy — lắp món khác vào thay rồi mới bán / trao đổi được món này.</div>'
+              : busy ? '<div class="sellinfo" style="color:var(--cyan)">' + busy + ' — không bán / trao đổi / lắp sang nơi khác được cho tới khi việc đó kết thúc.</div>'
               : val > 0 ? '<div class="sellinfo">Bán lại được: ' + fmt(val) + ' (' + Math.round(val / it.price * 100) + '% giá gốc)</div>'
               : '<div class="sellinfo" style="color:var(--mut)">Món này không có giá trị bán lại.</div>') +
             '<div class="rowflex">' +
-            (isEq ? '' : incompat ? '<button class="small equip" disabled>Không lắp được</button>' : '<button class="small primary equip">Lắp vào máy</button>') +
+            (isEq ? '' : busy ? '<button class="small equip" disabled>Đang giữ cho dịch vụ</button>' : incompat ? '<button class="small equip" disabled>Không lắp được</button>' : '<button class="small primary equip">Lắp vào máy</button>') +
             (inst.durability < 100 ? '<button class="small repair">Sửa chữa (' + fmt(repairCost) + ')</button>' : '') +
-            (!isEq && val > 0 ? '<button class="small sell">💰 Bán (' + fmt(val) + ')</button>' : '') +
+            (!isEq && !busy && val > 0 ? '<button class="small sell">💰 Bán (' + fmt(val) + ')</button>' : '') +
             '</div>';
           const eq = card.querySelector('.equip');
           if (eq) eq.addEventListener('click', () => equipPart(inst));
@@ -2021,6 +2077,9 @@
       });
     }
     function equipPart(inst){
+      if (S.service && S.service.loadedJobId){ toast('Đang có máy khách trên bàn test — vào tab Dịch Vụ bấm "Trả máy xuống" trước khi thay linh kiện máy của bạn.', 'err'); sndErr(); return; }
+      const busyEq = svcPartBusy(inst.uid);
+      if (busyEq){ toast('⛔ Không lắp được: ' + busyEq + '.', 'err'); sndErr(); return; }
       const it = itemOf(inst.cat, inst.itemId);
       if (inst.cat === 'cpu' || inst.cat === 'ram'){
         const r = compatReason(inst.cat, it, eqItem('board'));
@@ -2036,6 +2095,343 @@
       }
       else toast('Đã lắp ' + it.name + '.');
       markApplied(); sndOk(); saveGame(true); refreshAll();
+    }
+
+    /* ============================================================
+       DỊCH VỤ — BUILD MÁY & ÉP XUNG THUÊ CHO KHÁCH NGẪU NHIÊN
+       Mô hình tiền: khách KHÔNG đưa tiền trước. Người chơi bỏ tiền
+       túi mua linh kiện (hoặc dùng đồ sẵn trong Kho) lắp cho khách;
+       khi GIAO máy đạt yêu cầu, khách trả NGÂN SÁCH (tiền linh kiện)
+       + THÙ LAO (công build/ép xung) và linh kiện theo khách về.
+       Lắp đồ rẻ mà vẫn đạt yêu cầu = lời nhiều; quá hạn = bồi thường
+       20% ngân sách + trừ uy tín; hủy việc = linh kiện trả lại Kho
+       (chúng chỉ bị "giữ chỗ" bằng uid trong job.build, chưa từng rời
+       Kho cho tới lúc giao). Thời gian: 1 ngày game = 60 giây chơi.
+       Máy khách lên bàn test = hoán đổi S.equipped/S.oc với máy của
+       người chơi (máy của bạn được cất nguyên vẹn vào service.stash),
+       nên toàn bộ điều khiển ép xung / benchmark / stress test hiện
+       có chạy trên máy khách y như máy của bạn.
+       ============================================================ */
+    const DAY_SECONDS = 60;
+    let dayAcc = 0;
+    const SVC_NAMES = ['Anh Tuấn','Chị Lan Anh','Anh Minh Quân','Chị Thu Hằng','Anh Đức Huy','Chị Ngọc Trâm','Anh Văn Đức','Chị Hải Yến','Anh Quốc Bảo','Chị Phương Linh','Anh Trọng Nghĩa','Chị Khánh Vy','Anh Hoàng Nam','Chị Mỹ Duyên','Anh Thanh Tùng','Chị Bảo Châu','Anh Nhật Minh','Chị Thảo Nguyên','Anh Gia Khánh','Chị Hồng Nhung','Anh Xuân Trường','Chị Kim Ngân','Anh Hữu Phước','Chị Mai Phương'];
+    const SVC_NEEDS = [
+      { t:'Game thủ', note:'Chơi game 1080p/1440p, FPS cao là ưu tiên số một.' },
+      { t:'Streamer', note:'Vừa chơi vừa livestream nhiều giờ, máy phải mạnh và ổn định.' },
+      { t:'Văn phòng', note:'Làm việc cả ngày, cần máy êm, mát và bền.' },
+      { t:'Đồ họa 3D', note:'Render 3D nặng, cần điểm benchmark cao, chạy tải dài không sập.' },
+      { t:'Sinh viên', note:'Ngân sách eo hẹp, cần máy học tập + giải trí vừa đủ dùng.' },
+      { t:'Edit video', note:'Dựng phim 4K, cần CPU khỏe và điểm tổng cao.' },
+      { t:'Lập trình viên', note:'Build code liên tục, máy tuyệt đối không được crash giữa chừng.' },
+      { t:'Kế toán', note:'Chạy phần mềm kế toán cả ngày, ưu tiên độ bền và ổn định.' },
+    ];
+    /* Ngân sách/yêu cầu từng hạng khách đã cân theo giá & điểm thật trong CATALOG:
+       hạng nào cũng có bộ linh kiện mở khóa ở cấp tương ứng lắp được trong ngân sách */
+    const SVC_TIERS = {
+      1:{ budget:[6000000,10000000],  score:[3600,4600],   clock:[3600,4000], temp:[90,95], days:[3,5], label:'Khách bình dân' },
+      2:{ budget:[14000000,24000000], score:[6500,9000],   clock:[4200,4800], temp:[85,90], days:[4,6], label:'Khách tầm trung' },
+      3:{ budget:[28000000,45000000], score:[11000,15000], clock:[4800,5400], temp:[82,88], days:[5,7], label:'Khách khó tính' },
+      4:{ budget:[60000000,95000000], score:[16000,21500], clock:[5200,5800], temp:[78,85], days:[6,8], label:'Khách VIP / thi đấu' },
+    };
+    const svcPick = arr => arr[Math.floor(Math.random() * arr.length)];
+    const svcRndi = (a, b) => Math.round(a + Math.random() * (b - a));
+    function svcDefaults(){ return { rep:50, seq:0, waiting:[], active:[], history:[], totalEarned:0, jobsDone:0, loadedJobId:null, stash:null }; }
+    function svcTierCap(){
+      const lvl = levelOf(S.xp);
+      let t = lvl <= 2 ? 1 : lvl <= 4 ? 2 : lvl <= 6 ? 3 : 4;
+      if (S.service && S.service.rep < 25) t = 1; /* uy tín quá thấp: khách xịn không dám giao máy */
+      return t;
+    }
+    function genOffer(){
+      const cap = svcTierCap();
+      const tier = cap > 1 && Math.random() < 0.35 ? cap - 1 : cap;
+      const T = SVC_TIERS[tier];
+      const budget = Math.round(svcRndi(T.budget[0], T.budget[1]) / 100000) * 100000;
+      const fee = Math.round(budget * (0.12 + Math.random() * 0.08) / 10000) * 10000;
+      const need = svcPick(SVC_NEEDS);
+      return {
+        id: 'o' + (++S.service.seq), name: svcPick(SVC_NAMES), need: need.t, needNote: need.note, tier,
+        budget, fee, repGain: 3 + tier, repLoss: 6 + tier * 2,
+        reqScore: svcRndi(T.score[0], T.score[1]),
+        reqClock: Math.round(svcRndi(T.clock[0], T.clock[1]) / 100) * 100,
+        maxTemp: svcRndi(T.temp[0], T.temp[1]),
+        days: svcRndi(T.days[0], T.days[1]), waitLeft: svcRndi(2, 4),
+      };
+    }
+    /* Đảm bảo trạng thái dịch vụ luôn hợp lệ — bản lưu CŨ (chưa có service/day)
+       sẽ được khởi tạo trống tại đây, không đụng tới tiến trình cũ */
+    function svcEnsure(){
+      if (!S.service || typeof S.service !== 'object') S.service = svcDefaults();
+      const sv = S.service;
+      ['waiting','active','history'].forEach(k => { if (!Array.isArray(sv[k])) sv[k] = []; });
+      if (typeof sv.rep !== 'number') sv.rep = 50;
+      if (typeof sv.seq !== 'number') sv.seq = 0;
+      if (typeof sv.totalEarned !== 'number') sv.totalEarned = 0;
+      if (typeof sv.jobsDone !== 'number') sv.jobsDone = 0;
+      if (typeof S.day !== 'number' || S.day < 1) S.day = 1;
+      while (sv.waiting.length < 3) sv.waiting.push(genOffer());
+      sv.active.forEach(j => {
+        if (!j.build) j.build = { cpu:null, gpu:null, ram:null, board:null, psu:null, cooler:null };
+        Object.keys(j.build).forEach(cat => { if (j.build[cat] && !instOf(j.build[cat])) j.build[cat] = null; });
+      });
+      if (sv.loadedJobId && !sv.active.some(j => j.id === sv.loadedJobId)){ sv.loadedJobId = null; sv.stash = null; }
+    }
+    function svcJob(id){ return S.service.active.find(j => j.id === id); }
+    function svcLoadedJob(){ return S.service && S.service.loadedJobId ? svcJob(S.service.loadedJobId) : null; }
+    /* uid đang bị giữ cho dịch vụ thì không bán / không trao đổi / không lắp sang nơi khác được */
+    function svcPartBusy(uid){
+      if (!S.service) return null;
+      if (S.service.stash && Object.values(S.service.stash.equipped).includes(uid)) return 'Máy của bạn đang cất trên kệ (máy khách đang trên bàn test)';
+      for (const j of S.service.active){ if (j.build && Object.values(j.build).includes(uid)) return 'Đang giữ cho khách ' + j.name; }
+      return null;
+    }
+    function svcBuildComplete(job){ return ['cpu','gpu','ram','board','psu','cooler'].every(cat => job.build[cat] && instOf(job.build[cat])); }
+    function svcOptions(job, cat){
+      return S.inventory.filter(i => i.cat === cat && !i.broken).filter(i => {
+        if (job.build[cat] === i.uid) return true;
+        if (svcPartBusy(i.uid)) return false;
+        if (Object.values(S.equipped).includes(i.uid)) return false;
+        return true;
+      });
+    }
+    function svcAccept(offerId){
+      const sv = S.service;
+      const idx = sv.waiting.findIndex(o => o.id === offerId);
+      if (idx < 0) return;
+      if (sv.active.length >= 3){ toast('Bạn đang nhận tối đa 3 việc cùng lúc — giao hoặc hủy bớt một việc đã.', 'err'); sndErr(); return; }
+      const o = sv.waiting.splice(idx, 1)[0];
+      sv.active.push(Object.assign({}, o, {
+        acceptedDay: S.day, deadlineDay: S.day + o.days,
+        build: { cpu:null, gpu:null, ram:null, board:null, psu:null, cooler:null },
+        oc: null, benchBest: 0, benchClock: 0, stressOk: false, stressPeak: null,
+      }));
+      sv.waiting.push(genOffer());
+      toast('🤝 Đã nhận việc của ' + o.name + ' — hạn giao: hết ngày ' + (S.day + o.days) + '. Lắp linh kiện cho khách ngay trong tab Dịch Vụ.');
+      sndOk(); saveGame(true); renderService(); renderHUD();
+    }
+    function svcReject(offerId){
+      const sv = S.service;
+      const idx = sv.waiting.findIndex(o => o.id === offerId);
+      if (idx < 0) return;
+      const o = sv.waiting.splice(idx, 1)[0];
+      sv.waiting.push(genOffer());
+      toast('Đã từ chối khách ' + o.name + ' — một khách mới đã tới xưởng.');
+      sndClick(); saveGame(true); renderService();
+    }
+    function svcAssign(job, cat, uid){
+      if (S.service.loadedJobId === job.id){ toast('Máy khách đang trên bàn test — bấm "Trả máy xuống" trước khi thay linh kiện.', 'err'); sndErr(); return; }
+      if (uid){
+        const inst = instOf(uid);
+        if (!inst || inst.broken){ toast('Linh kiện không khả dụng.', 'err'); sndErr(); return; }
+        const busy = svcPartBusy(uid);
+        if (busy && job.build[cat] !== uid){ toast('⛔ ' + busy + '.', 'err'); sndErr(); return; }
+        if (Object.values(S.equipped).includes(uid)){ toast('⛔ Món này đang lắp trong máy đang trên bàn — lắp món khác thay vào trước.', 'err'); sndErr(); return; }
+        const it = itemOf(cat, inst.itemId);
+        /* Tương thích socket / bus RAM theo đúng luật đã có, đối chiếu mainboard chọn cho khách */
+        if (cat === 'cpu' || cat === 'ram'){
+          const bInst = job.build.board ? instOf(job.build.board) : null;
+          const bIt = bInst ? itemOf('board', bInst.itemId) : null;
+          const r = compatReason(cat, it, bIt);
+          if (r){ toast('⛔ Không lắp được cho khách: ' + r + ' (theo mainboard đã chọn cho khách).', 'err'); sndErr(); return; }
+        }
+        if (cat === 'board'){
+          const conflicts = [];
+          const cInst = job.build.cpu ? instOf(job.build.cpu) : null;
+          if (cInst){ const r = cpuCompatReason(itemOf('cpu', cInst.itemId), it); if (r) conflicts.push(r); }
+          const rInst = job.build.ram ? instOf(job.build.ram) : null;
+          if (rInst){ const r = ramCompatReason(itemOf('ram', rInst.itemId), it); if (r) conflicts.push(r); }
+          if (conflicts.length){ toast('⛔ Mainboard này không khớp CPU/RAM đã chọn cho khách: ' + conflicts.join('; ') + '.', 'err'); sndErr(); return; }
+        }
+      }
+      job.build[cat] = uid || null;
+      /* CPU/RAM thay đổi -> thông số ép xung của máy khách đặt lại cho khớp, như khi lắp vào máy của bạn */
+      if (job.build.cpu && job.build.ram){
+        const cpuIt = itemOf('cpu', instOf(job.build.cpu).itemId), ramIt = itemOf('ram', instOf(job.build.ram).itemId);
+        if (!job.oc || cat === 'cpu') job.oc = defaultOC(cpuIt, ramIt);
+        else if (cat === 'ram'){ job.oc.ramFreq = ramIt.freq; job.oc.ramCL = ramIt.cl; job.oc.ramVolt = ramIt.baseV; }
+      }
+      /* Đổi bất kỳ linh kiện nào -> kết quả test đã ghi không còn đúng với bộ máy mới */
+      job.benchBest = 0; job.benchClock = 0; job.stressOk = false; job.stressPeak = null;
+      sndClick(); saveGame(true); renderService();
+    }
+    function svcLoadRig(job){
+      if (sim.stress || sim.bench){ toast('Đang chạy test — chờ test xong đã.', 'err'); sndErr(); return; }
+      if (!svcBuildComplete(job)){ toast('Phải lắp đủ 6 loại linh kiện cho khách trước khi đưa máy lên bàn test.', 'err'); sndErr(); return; }
+      if (S.service.loadedJobId === job.id) return;
+      if (S.service.loadedJobId) svcUnloadRig(true);
+      const sv = S.service;
+      sv.stash = { equipped: Object.assign({}, S.equipped), oc: JSON.parse(JSON.stringify(S.oc)) };
+      S.equipped = Object.assign({}, job.build);
+      S.oc = job.oc ? JSON.parse(JSON.stringify(job.oc)) : defaultOC(eqItem('cpu'), eqItem('ram'));
+      job.oc = JSON.parse(JSON.stringify(S.oc));
+      sv.loadedJobId = job.id;
+      sim.cpuTemp = 34; sim.gpuTemp = 33;
+      markApplied(); refreshAll(); saveGame(true);
+      toast('🔧 Máy của khách ' + job.name + ' đã lên bàn test: chỉnh ở tab Ép Xung, chạy Benchmark + Stress Test — kết quả tự ghi vào việc này. Máy của bạn được cất nguyên vẹn và tự trở lại khi trả máy xuống.', 'gold');
+      sndOk(); gotoTab('oc');
+    }
+    function svcUnloadRig(silent){
+      const sv = S.service;
+      const job = svcLoadedJob();
+      if (!job || !sv.stash){ sv.loadedJobId = null; sv.stash = null; return; }
+      job.oc = JSON.parse(JSON.stringify(S.oc));
+      S.equipped = sv.stash.equipped; S.oc = sv.stash.oc;
+      sv.stash = null; sv.loadedJobId = null;
+      sim.cpuTemp = 34; sim.gpuTemp = 33;
+      markApplied(); refreshAll(); saveGame(true);
+      if (!silent) toast('Đã trả máy khách xuống — máy của bạn đã trở lại bàn test.');
+    }
+    function svcMissing(job){
+      const miss = [];
+      if (!svcBuildComplete(job)) miss.push('chưa lắp đủ 6 loại linh kiện');
+      if (job.benchBest < job.reqScore) miss.push('điểm Benchmark ' + job.benchBest.toLocaleString('vi-VN') + ' < yêu cầu ' + job.reqScore.toLocaleString('vi-VN'));
+      if (job.benchClock < job.reqClock) miss.push('xung CPU khi benchmark ' + job.benchClock.toLocaleString('vi-VN') + ' MHz < mục tiêu ' + job.reqClock.toLocaleString('vi-VN') + ' MHz');
+      if (!job.stressOk) miss.push('chưa qua Stress Test 10 giây trên máy khách');
+      else if (job.stressPeak !== null && job.stressPeak > job.maxTemp) miss.push('nhiệt đỉnh khi stress ' + Math.round(job.stressPeak) + '°C > mức tối đa khách cho phép ' + job.maxTemp + '°C');
+      return miss;
+    }
+    function svcDeliver(job){
+      const miss = svcMissing(job);
+      if (miss.length){ toast('Chưa giao được, khách sẽ không trả tiền — còn thiếu: ' + miss.join('; ') + '.', 'err'); sndErr(); return; }
+      const sv = S.service;
+      askConfirm('Giao máy cho ' + job.name + '?',
+        'Khách thanh toán: ngân sách linh kiện ' + fmt(job.budget) + ' + thù lao ' + fmt(job.fee) + ' = ' + fmt(job.budget + job.fee) + '.\n' +
+        'Linh kiện đã lắp cho khách sẽ theo khách về (rời khỏi Kho của bạn). Uy tín +' + job.repGain + ', +' + (30 + job.tier * 20) + ' XP.',
+        () => {
+          if (sv.loadedJobId === job.id){ S.equipped = sv.stash.equipped; S.oc = sv.stash.oc; sv.stash = null; sv.loadedJobId = null; sim.cpuTemp = 34; sim.gpuTemp = 33; }
+          const uids = Object.values(job.build).filter(Boolean);
+          S.inventory = S.inventory.filter(i => !uids.includes(i.uid));
+          S.money += job.budget + job.fee;
+          sv.totalEarned += job.budget + job.fee; sv.jobsDone++;
+          sv.rep = clamp(sv.rep + job.repGain, 0, 100);
+          sv.history.unshift({ name: job.name, need: job.need, result: 'Đã giao đúng hạn', gain: job.budget + job.fee, day: S.day });
+          sv.history = sv.history.slice(0, 12);
+          sv.active = sv.active.filter(j => j.id !== job.id);
+          gainXP(30 + job.tier * 20);
+          toast('🎉 Đã giao máy cho ' + job.name + ': nhận ' + fmt(job.budget + job.fee) + ', uy tín +' + job.repGain + '.', 'gold');
+          sndCoin(); markApplied(); saveGame(true); refreshAll();
+        });
+    }
+    function svcCancel(job){
+      askConfirm('Hủy việc của ' + job.name + '?',
+        'Toàn bộ linh kiện đã lắp cho khách sẽ được trả lại Kho (chúng vẫn nằm trong Kho, chỉ bỏ giữ chỗ). Bạn không nhận thù lao, không bị trừ uy tín — chỉ mất thời gian đã bỏ ra.',
+        () => {
+          const sv = S.service;
+          if (sv.loadedJobId === job.id) svcUnloadRig(true);
+          sv.active = sv.active.filter(j => j.id !== job.id);
+          sv.history.unshift({ name: job.name, need: job.need, result: 'Đã hủy việc', gain: 0, day: S.day });
+          sv.history = sv.history.slice(0, 12);
+          toast('Đã hủy việc của ' + job.name + ' — linh kiện đã trả lại Kho.');
+          sndClick(); saveGame(true); refreshAll();
+        });
+    }
+    function svcExpireJob(job){
+      const sv = S.service;
+      if (sv.loadedJobId === job.id) svcUnloadRig(true);
+      const comp = Math.round(job.budget * 0.20 / 1000) * 1000;
+      const paid = Math.min(S.money, comp);
+      S.money -= paid;
+      sv.rep = clamp(sv.rep - job.repLoss, 0, 100);
+      sv.active = sv.active.filter(j => j.id !== job.id);
+      sv.history.unshift({ name: job.name, need: job.need, result: 'Quá hạn giao — bồi thường ' + fmt(paid), gain: -paid, day: S.day });
+      sv.history = sv.history.slice(0, 12);
+      toast('⏰ Quá hạn giao máy cho ' + job.name + '! Bồi thường ' + fmt(paid) + ', uy tín −' + job.repLoss + '. Linh kiện đã trả lại Kho.', 'err');
+      sndErr(); saveGame(true);
+    }
+    function svcAdvanceDay(){
+      S.day++;
+      const sv = S.service;
+      sv.waiting.forEach(o => o.waitLeft--);
+      sv.waiting.filter(o => o.waitLeft <= 0).forEach(o => toast('🚶 Khách ' + o.name + ' chờ quá lâu nên đã bỏ đi — khách mới sẽ tới thay.'));
+      sv.waiting = sv.waiting.filter(o => o.waitLeft > 0);
+      while (sv.waiting.length < 3) sv.waiting.push(genOffer());
+      sv.active.slice().forEach(j => { if (S.day > j.deadlineDay) svcExpireJob(j); });
+      if (sv.active.length) toast('📅 Sang ngày ' + S.day + ' — kiểm tra hạn giao trong tab Dịch Vụ.');
+      saveGame(true); renderHUD();
+      if ($('tab-service').classList.contains('on')) renderService();
+    }
+    function svcChk(ok, text){ return '<li>' + (ok ? '<span class="ok">✔</span> ' : '<span class="bad">✘</span> ') + text + '</li>'; }
+    function svcOfferCard(o){
+      const card = document.createElement('div'); card.className = 'card';
+      card.innerHTML =
+        '<div class="rowflex" style="justify-content:space-between"><b style="color:#fff;font-size:16px">' + o.name + '</b><span class="tag">' + SVC_TIERS[o.tier].label + '</span></div>' +
+        '<div style="margin:4px 0"><span class="tag eq">' + o.need + '</span> <span class="muted" style="font-size:13px">' + o.needNote + '</span></div>' +
+        kv('Ngân sách linh kiện khách trả', fmt(o.budget)) +
+        kv('Thù lao của bạn', '<b style="color:var(--amber)">' + fmt(o.fee) + '</b>') +
+        kv('Yêu cầu Benchmark', '≥ ' + o.reqScore.toLocaleString('vi-VN') + ' điểm') +
+        kv('Xung CPU mục tiêu', '≥ ' + o.reqClock.toLocaleString('vi-VN') + ' MHz') +
+        kv('Nhiệt tối đa khi stress', '≤ ' + o.maxTemp + ' °C') +
+        kv('Hạn giao', o.days + ' ngày kể từ khi nhận') +
+        kv('Uy tín nếu giao tốt', '+' + o.repGain) +
+        '<div class="muted" style="font-size:12.5px;margin:6px 0">Khách sẽ bỏ đi sau ' + o.waitLeft + ' ngày nữa nếu bạn không nhận việc.</div>' +
+        '<div class="rowflex"><button class="small primary acc">🤝 Nhận việc</button><button class="small rej">Từ chối</button></div>';
+      card.querySelector('.acc').addEventListener('click', () => svcAccept(o.id));
+      card.querySelector('.rej').addEventListener('click', () => svcReject(o.id));
+      return card;
+    }
+    function svcJobCard(job){
+      const sv = S.service;
+      const loaded = sv.loadedJobId === job.id;
+      const otherLoaded = !!sv.loadedJobId && !loaded;
+      const daysLeft = job.deadlineDay - S.day;
+      const built = ['cpu','gpu','ram','board','psu','cooler'].filter(cat => job.build[cat]).length;
+      const card = document.createElement('div'); card.className = 'card mb' + (loaded ? ' svcloaded' : '');
+      let html =
+        '<div class="rowflex" style="justify-content:space-between"><b style="color:#fff;font-size:16px">🧑 ' + job.name + ' — ' + job.need + '</b>' +
+        '<span class="tag" style="' + (daysLeft <= 0 ? 'color:var(--red);border-color:var(--red)' : daysLeft <= 2 ? 'color:var(--yellow);border-color:var(--yellow)' : '') + '">⏰ ' + (daysLeft > 0 ? 'Còn ' + daysLeft + ' ngày (hạn: hết ngày ' + job.deadlineDay + ')' : 'HẠN CHÓT HÔM NAY (ngày ' + job.deadlineDay + ')') + '</span></div>' +
+        kv('Nhận việc ngày', job.acceptedDay + ' · Hạn giao: hết ngày ' + job.deadlineDay) +
+        kv('Khách trả khi giao đạt yêu cầu', fmt(job.budget) + ' ngân sách + ' + fmt(job.fee) + ' thù lao · Uy tín +' + job.repGain) +
+        '<h3 style="margin-top:10px">Lắp linh kiện cho khách (lấy từ Kho của bạn)</h3>';
+      if (loaded) html += '<div class="alert y">🔧 Máy này đang trên bàn test — trả máy xuống mới thay linh kiện được.</div>';
+      html += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">';
+      ['cpu','gpu','ram','board','psu','cooler'].forEach(cat => {
+        const opts = svcOptions(job, cat);
+        html += '<div><div class="muted" style="font-size:12.5px">' + CATNAME[cat] + '</div><select class="svcsel" data-cat="' + cat + '" ' + (loaded ? 'disabled' : '') + '>' +
+          '<option value="">— Chưa lắp —</option>' +
+          opts.map(i => { const it = itemOf(cat, i.itemId); return '<option value="' + i.uid + '"' + (job.build[cat] === i.uid ? ' selected' : '') + '>' + it.name + ' · bền ' + Math.round(i.durability) + '%' + (cat === 'cpu' && i.revealed ? ' · silicon ' + i.silicon : '') + ' (' + fmt(it.price) + ')</option>'; }).join('') +
+          '</select></div>';
+      });
+      html += '</div>' +
+        '<div class="muted" style="font-size:12.5px">Thiếu linh kiện? Sang tab Cửa Hàng mua thêm bằng tiền của bạn — khách trả lại qua ngân sách khi giao máy, nên lắp bộ rẻ nhất mà vẫn đạt yêu cầu là lời nhất. CPU/RAM phải khớp socket &amp; bus RAM của mainboard đã chọn cho khách, game sẽ chặn món không tương thích. Linh kiện đang lắp trong máy của bạn (hoặc đang giữ cho khách khác) sẽ không hiện trong danh sách. Đổi bất kỳ linh kiện nào cũng xóa kết quả Benchmark/Stress đã ghi cho việc này.</div>' +
+        '<h3 style="margin-top:10px">Tiến độ yêu cầu của khách</h3><ul class="svcchk">' +
+        svcChk(built === 6, 'Lắp đủ linh kiện: ' + built + '/6 loại') +
+        svcChk(job.benchBest >= job.reqScore, 'Benchmark: ' + job.benchBest.toLocaleString('vi-VN') + ' / ' + job.reqScore.toLocaleString('vi-VN') + ' điểm') +
+        svcChk(job.benchClock >= job.reqClock, 'Xung CPU khi benchmark: ' + job.benchClock.toLocaleString('vi-VN') + ' / ' + job.reqClock.toLocaleString('vi-VN') + ' MHz') +
+        svcChk(job.stressOk && job.stressPeak !== null && job.stressPeak <= job.maxTemp, 'Stress Test 10 giây: ' + (job.stressOk ? 'đã QUA — nhiệt đỉnh ' + Math.round(job.stressPeak) + '°C / tối đa cho phép ' + job.maxTemp + '°C' : 'chưa qua trên máy khách')) +
+        '</ul>' +
+        '<div class="rowflex">' +
+        (loaded ? '<button class="small unload">⬇ Trả máy xuống (về máy của bạn)</button>' : '<button class="small primary load"' + (otherLoaded ? ' disabled title="Đang có máy khách khác trên bàn test"' : '') + '>🔧 Đưa máy khách lên bàn test</button>') +
+        '<button class="small primary deliver">🎁 Giao máy &amp; nhận ' + fmt(job.budget + job.fee) + '</button>' +
+        '<button class="small danger cancel">Hủy việc</button></div>' +
+        '<div class="muted" style="font-size:12.5px;margin-top:6px">Quy trình: lắp đủ 6 loại linh kiện → đưa lên bàn test → tab Ép Xung chỉnh xung/volt → chạy Benchmark và Stress Test (kết quả tự ghi vào việc này, không tính vào kỷ lục của bạn) → quay lại đây bấm Giao máy. Quá hạn giao: bồi thường ' + fmt(Math.round(job.budget * 0.20 / 1000) * 1000) + ' (20% ngân sách) và uy tín −' + job.repLoss + '.</div>';
+      card.innerHTML = html;
+      card.querySelectorAll('select.svcsel').forEach(sel => sel.addEventListener('change', () => svcAssign(job, sel.dataset.cat, sel.value ? Number(sel.value) : null)));
+      const lb = card.querySelector('.load'); if (lb) lb.addEventListener('click', () => svcLoadRig(job));
+      const ub = card.querySelector('.unload'); if (ub) ub.addEventListener('click', () => svcUnloadRig(false));
+      card.querySelector('.deliver').addEventListener('click', () => svcDeliver(job));
+      card.querySelector('.cancel').addEventListener('click', () => svcCancel(job));
+      return card;
+    }
+    function renderService(){
+      svcEnsure();
+      const sv = S.service;
+      $('svcSummary').innerHTML = '<div class="card"><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' +
+        '<div class="gauge"><div class="lbl">Ngày hiện tại</div><div class="val">' + S.day + '</div><div class="sub">1 ngày = ' + DAY_SECONDS + ' giây chơi</div></div>' +
+        '<div class="gauge"><div class="lbl">Uy tín</div><div class="val" style="color:' + (sv.rep >= 60 ? 'var(--green)' : sv.rep >= 30 ? 'var(--yellow)' : 'var(--red)') + '">' + sv.rep + '<small> / 100</small></div><div class="sub">' + (sv.rep < 25 ? 'Dưới 25: chỉ còn khách bình dân dám tới' : 'Giao tốt tăng uy tín, quá hạn trừ nặng') + '</div></div>' +
+        '<div class="gauge"><div class="lbl">Việc đã giao</div><div class="val">' + sv.jobsDone + '</div><div class="sub">Đang nhận ' + sv.active.length + ' / 3 việc</div></div>' +
+        '<div class="gauge"><div class="lbl">Tổng thu dịch vụ</div><div class="val" style="color:var(--amber);font-size:19px">' + fmt(sv.totalEarned) + '</div><div class="sub">Ngân sách + thù lao đã nhận</div></div>' +
+        '</div><div class="svcbar" style="margin-top:10px"><i style="width:' + sv.rep + '%"></i></div></div>';
+      const lj = svcLoadedJob();
+      $('svcLoaded').innerHTML = lj ? '<div class="alert y">🔧 Máy của khách <b>' + lj.name + '</b> đang trên bàn test — các tab Ép Xung / Benchmark / Stress Test đang chạy trên máy khách, kết quả ghi vào việc này. <button class="small" id="svcUnloadBtn">⬇ Trả máy xuống, về máy của bạn</button></div>' : '';
+      const ub = $('svcUnloadBtn'); if (ub) ub.addEventListener('click', () => svcUnloadRig(false));
+      const w = $('svcWaiting'); w.innerHTML = '';
+      sv.waiting.forEach(o => w.appendChild(svcOfferCard(o)));
+      const a = $('svcActive'); a.innerHTML = '';
+      if (!sv.active.length) a.innerHTML = '<div class="card muted">Chưa nhận việc nào. Bấm "Nhận việc" ở một khách đang chờ phía trên để bắt đầu.</div>';
+      sv.active.forEach(j => a.appendChild(svcJobCard(j)));
+      $('svcHistory').innerHTML = sv.history.length
+        ? sv.history.map(h => '<div class="kv"><span>Ngày ' + h.day + ' — ' + h.name + ' (' + h.need + '): ' + h.result + '</span><b style="color:' + (h.gain > 0 ? 'var(--green)' : h.gain < 0 ? 'var(--red)' : 'var(--mut)') + '">' + (h.gain > 0 ? '+' : '') + fmt(h.gain) + '</b></div>').join('')
+        : '<div class="muted">Chưa có việc nào được ghi lại.</div>';
     }
 
     /* ============================================================
@@ -2099,6 +2495,8 @@
     let lastTick = Date.now();
     setInterval(() => {
       const now = Date.now(); const dt = Math.min(0.5, (now - lastTick) / 1000); lastTick = now;
+      /* Đồng hồ ngày trong game (phục vụ hạn giao dịch vụ): 1 ngày = DAY_SECONDS giây chơi */
+      if (S.service){ dayAcc += dt; if (dayAcc >= DAY_SECONDS){ dayAcc -= DAY_SECONDS; svcAdvanceDay(); } }
       const load = sim.activity === 'stress' || sim.activity === 'bench' ? 1 : 0.15;
       const c = compute(load);
       /* Nhiệt tiến về mục tiêu với hằng số thời gian ~2.5s */
@@ -2109,6 +2507,7 @@
 
       if (sim.stress){
         const st = sim.stress; st.elapsed += dt;
+        st.peak = Math.max(st.peak || 0, sim.cpuTemp);
         samples.push({ t: st.elapsed, temp: sim.cpuTemp, freq: c.freqEff, volt: c.vReal, pow: c.cpuPower });
         if (samples.length > 700) samples.shift();
         $('stressProg').style.width = (st.elapsed / st.dur * 100) + '%';
@@ -2137,6 +2536,7 @@
           } else if (st.elapsed >= st.dur){
             if (sim.cpuTemp < 85 && c.freqSet >= 4200) S.stats.coolPass = true;
             S.stats.maxCpuFreq = Math.max(S.stats.maxCpuFreq, Math.round(c.freqEff));
+            lastStressPeak = st.peak || sim.cpuTemp;
             stopStress(false); stressPass(st.dur);
           }
         }
@@ -2199,7 +2599,7 @@
         (zone !== 'g' ? '<div class="alert ' + zone + '" style="margin-top:8px">' + (zone === 'r' ? 'Vcore trên 1.45V: giảm tuổi thọ nhanh do electromigration!' : 'Vcore 1.35–1.45V: vùng nguy hiểm, chỉ dùng ngắn hạn.') + '</div>' : '');
     }
     function refreshAll(){
-      renderHUD(); refreshOC(); renderDash(); renderShop(); renderShopAdvice(); renderInv(); renderMissions(); renderAch(); renderBenchPanel(); checkAch();
+      renderHUD(); refreshOC(); renderDash(); renderShop(); renderShopAdvice(); renderInv(); renderMissions(); renderAch(); renderBenchPanel(); renderService(); checkAch();
     }
 
     /* ============================================================
@@ -2209,6 +2609,7 @@
     (function init(){
       let loaded = false;
       try{ const raw = localStorage.getItem(SAVE_KEY); if (raw){ const d = JSON.parse(raw); if (d && d.inventory && d.oc){ S = d; uidSeq = Math.max(0, ...S.inventory.map(i => i.uid)) + 1; loaded = true; } } }catch(e){}
+      svcEnsure(); /* migration: bản lưu cũ mở bình thường, dịch vụ bắt đầu trống */
       if (S.oc && [0.001, 0.005, 0.01, 0.025].includes(Number(S.oc.vstep))) vcoreStep = Number(S.oc.vstep);
       appliedOC = snapshotOC();
       refreshAll(); drawChart();
