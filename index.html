@@ -2194,16 +2194,146 @@
         return true;
       });
     }
+    /* ---------- ƯỚC TÍNH CHI PHÍ ỨNG TRƯỚC CHO 1 VIỆC ----------
+       Tìm bộ 6 loại linh kiện RẺ NHẤT vẫn đạt yêu cầu của việc:
+       món đã có sẵn trong Kho (không hỏng, chưa giữ cho khách khác)
+       thì tính 0 ₫; món đang lắp trong máy của bạn KHÔNG được tính
+       là có sẵn; thiếu món nào thì phải mua mới ở Cửa Hàng (chỉ tính
+       món đã mở khóa ở cấp hiện tại). Bộ phải tương thích socket /
+       bus RAM và — mô phỏng bằng chính công thức reqVoltage() và
+       cách tính điểm/nhiệt của compute() — phải đạt được điểm
+       Benchmark, xung CPU và trần nhiệt của khách khi ép xung hợp
+       lý (LLC 5, Vcore vừa đủ volt, RAM/GPU ép nhẹ). CPU mua mới
+       chưa biết silicon nên tính theo mức trung bình khá (85).
+       Không tìm được bộ nào đạt yêu cầu thì trả về null. */
+    let svcEstCache = { key:'', val:null };
+    function svcSpareOptions(cat){
+      const opts = new Map(); /* itemId -> { item, cost, silicon } */
+      S.inventory.forEach(i => {
+        if (i.cat !== cat || i.broken) return;
+        if (Object.values(S.equipped).includes(i.uid)) return; /* đang lắp trong máy của bạn: không tính là có sẵn */
+        if (svcPartBusy(i.uid)) return; /* đã giữ cho khách khác / máy của bạn đang cất trên kệ */
+        const it = itemOf(cat, i.itemId); if (!it) return;
+        const sil = cat === 'cpu' ? (i.silicon || 85) : null;
+        const prev = opts.get(i.itemId);
+        if (!prev || (sil !== null && sil > prev.silicon)) opts.set(i.itemId, { item: it, cost: 0, silicon: sil });
+      });
+      const lvl = levelOf(S.xp);
+      CATALOG[cat].forEach(it => {
+        if (it.lvl > lvl) return; /* chưa mở khóa trong Cửa Hàng ở cấp hiện tại */
+        if (!opts.has(it.id)) opts.set(it.id, { item: it, cost: it.price, silicon: cat === 'cpu' ? 85 : null });
+      });
+      return [...opts.values()].sort((a, b) => a.cost - b.cost);
+    }
+    function svcComboFeasible(cpuO, gpuO, ramO, boardO, psuO, coolerO, req){
+      const cpu = cpuO.item, gpu = gpuO.item, ram = ramO.item, board = boardO.item, psu = psuO.item, cooler = coolerO.item;
+      const silicon = cpuO.silicon || 85;
+      const droopFull = 0.075 * board.droop * (1 - (5 - 1) * 0.18); /* LLC 5: Vdroop thấp nhất */
+      const llcHeat = 1 + (5 - 3) * 0.018;
+      /* RAM ép nhẹ tới bus cao nhất mainboard hỗ trợ, không vượt quá 130% xung gốc của RAM */
+      const ramBusCap = Math.max(...board.ramBus.filter(b => b <= ram.freq * 1.3).concat([ram.freq]));
+      const ramScore = 500 * (ramBusCap / ram.freq);
+      const gpuScore = gpu.baseScore * 1.12; /* GPU ép nhẹ core/mem */
+      const gpuPower = gpu.tdp * 1.25;
+      if (cpu.baseScore * 1.55 + gpuScore + ramScore < req.reqScore) return false; /* ép CPU tối đa cũng không đủ điểm */
+      const startFreq = Math.ceil(req.reqClock / 100) * 100;
+      for (let freq = startFreq; freq <= cpu.baseFreq * 1.55; freq += 100){
+        const reqV = reqVoltage(cpu, silicon, freq, 100);
+        const vcore = reqV + droopFull + 0.01; /* đặt Vcore vừa đủ volt sau Vdroop */
+        if (vcore > board.maxV + 1e-9) return false; /* mainboard không cấp đủ volt — xung cao hơn càng thiếu volt */
+        const vReal = vcore - droopFull;
+        const cpuPower = cpu.tdp * (freq / cpu.baseFreq) * Math.pow(vReal / cpu.baseV, 2) * llcHeat;
+        const temp = cooler.base + cpuPower * cooler.coeff;
+        if (temp > req.maxTemp || temp >= TJMAX) return false; /* xung cao hơn chỉ nóng hơn nữa */
+        let throttle = 1;
+        if (temp > 95) throttle = Math.max(0.55, 1 - (temp - 85) * 0.012);
+        else if (temp > 85) throttle = 1 - (temp - 85) * 0.004;
+        const totalPower = cpuPower + gpuPower + 6 + 45;
+        if (totalPower > psu.watts * 0.95) return false; /* PSU không gánh nổi ở bất kỳ xung nào cao hơn */
+        const freqEff = freq * throttle;
+        if (freqEff < req.reqClock) continue;
+        const score = Math.round((cpu.baseScore * (freqEff / cpu.baseFreq) + gpuScore + ramScore) * throttle);
+        if (score >= req.reqScore) return true;
+      }
+      return false;
+    }
+    function svcEstimateCost(req){
+      const spareSig = S.inventory.map(i => i.uid + ':' + i.itemId + ':' + (i.broken ? 1 : 0)).join(',') +
+        '|eq' + Object.values(S.equipped).join(',') +
+        '|busy' + (S.service ? S.service.active.map(j => Object.values(j.build || {}).filter(Boolean).join('-')).join(',') : '');
+      const key = req.reqScore + '|' + req.reqClock + '|' + req.maxTemp + '|' + levelOf(S.xp) + '|' + spareSig;
+      if (svcEstCache.key === key) return svcEstCache.val;
+      const cats = ['cpu','gpu','ram','board','psu','cooler'];
+      const opts = {}; cats.forEach(c => opts[c] = svcSpareOptions(c));
+      let best = null;
+      for (const boardO of opts.board) for (const cpuO of opts.cpu){
+        if (cpuCompatReason(cpuO.item, boardO.item)) continue;
+        for (const ramO of opts.ram){
+          if (ramCompatReason(ramO.item, boardO.item)) continue;
+          const coreCost = boardO.cost + cpuO.cost + ramO.cost;
+          if (best !== null && coreCost >= best) continue;
+          for (const gpuO of opts.gpu) for (const psuO of opts.psu) for (const coolerO of opts.cooler){
+            const total = coreCost + gpuO.cost + psuO.cost + coolerO.cost;
+            if (best !== null && total >= best) continue;
+            if (svcComboFeasible(cpuO, gpuO, ramO, boardO, psuO, coolerO, req)) best = total;
+          }
+        }
+      }
+      const val = best === null ? null : { cost: best };
+      svcEstCache = { key, val };
+      return val;
+    }
+    /* Tiền THỰC TẾ đã chi cho bộ máy của 1 việc tính tới hiện tại:
+       linh kiện đang lắp cho khách mà lúc nhận việc bạn CHƯA có
+       trong Kho = phải mua sau khi nhận việc -> tính theo giá mua;
+       món đã có sẵn từ trước lúc nhận việc -> 0 ₫. Việc nhận từ
+       bản lưu cũ (chưa có mốc kiểm kê lúc nhận) tính theo giá trị
+       linh kiện đang lắp cho khách. */
+    function svcJobSpent(job){
+      let sum = 0;
+      const owned = Array.isArray(job.ownedAtAccept) ? job.ownedAtAccept : null;
+      Object.keys(job.build).forEach(cat => {
+        const uid = job.build[cat]; if (!uid) return;
+        const inst = instOf(uid); if (!inst) return;
+        if (owned && owned.includes(uid)) return;
+        const it = itemOf(cat, inst.itemId); if (it) sum += it.price;
+      });
+      return sum;
+    }
     function svcAccept(offerId){
       const sv = S.service;
       const idx = sv.waiting.findIndex(o => o.id === offerId);
       if (idx < 0) return;
       if (sv.active.length >= 3){ toast('Bạn đang nhận tối đa 3 việc cùng lúc — giao hoặc hủy bớt một việc đã.', 'err'); sndErr(); return; }
+      const o = sv.waiting[idx];
+      const est = svcEstimateCost(o);
+      /* Nút Nhận việc KHÔNG bị khóa khi thiếu tiền: chỉ cảnh báo rõ
+         các con số + hậu quả quá hạn, người chơi xác nhận mới nhận */
+      if (est && S.money < est.cost){
+        const comp = Math.round(o.budget * 0.20 / 1000) * 1000;
+        askConfirm('⚠ Chưa đủ tiền ứng trước cho việc của ' + o.name,
+          'Chi phí ứng trước ước tính để lắp bộ máy đạt yêu cầu của khách: khoảng ' + fmt(est.cost) + '.\n' +
+          'Tiền bạn đang có: ' + fmt(S.money) + ' — còn thiếu khoảng ' + fmt(est.cost - S.money) + '.\n\n' +
+          'Bạn vẫn có thể nhận việc rồi kiếm thêm tiền trong hạn giao (' + o.days + ' ngày, tới hết ngày ' + (S.day + o.days) + '), nhưng nếu quá hạn giao máy, bạn phải bồi thường ' + fmt(comp) + ' (20% ngân sách ' + fmt(o.budget) + ') và bị trừ ' + o.repLoss + ' uy tín.\n\n' +
+          'Vẫn nhận việc này chứ?',
+          () => svcDoAccept(offerId), true);
+        return;
+      }
+      svcDoAccept(offerId);
+    }
+    function svcDoAccept(offerId){
+      const sv = S.service;
+      const idx = sv.waiting.findIndex(o => o.id === offerId);
+      if (idx < 0) return;
+      if (sv.active.length >= 3){ toast('Bạn đang nhận tối đa 3 việc cùng lúc — giao hoặc hủy bớt một việc đã.', 'err'); sndErr(); return; }
       const o = sv.waiting.splice(idx, 1)[0];
+      const est = svcEstimateCost(o);
       sv.active.push(Object.assign({}, o, {
         acceptedDay: S.day, deadlineDay: S.day + o.days,
         build: { cpu:null, gpu:null, ram:null, board:null, psu:null, cooler:null },
         oc: null, benchBest: 0, benchClock: 0, stressOk: false, stressPeak: null,
+        estCost: est ? est.cost : null, /* chi phí ứng trước ước tính tại thời điểm nhận việc */
+        ownedAtAccept: S.inventory.map(i => i.uid), /* mốc kiểm kê Kho lúc nhận việc, để tính tiền đã chi thực tế */
       }));
       sv.waiting.push(genOffer());
       toast('🤝 Đã nhận việc của ' + o.name + ' — hạn giao: hết ngày ' + (S.day + o.days) + '. Lắp linh kiện cho khách ngay trong tab Dịch Vụ.');
@@ -2352,6 +2482,8 @@
     }
     function svcChk(ok, text){ return '<li>' + (ok ? '<span class="ok">✔</span> ' : '<span class="bad">✘</span> ') + text + '</li>'; }
     function svcOfferCard(o){
+      const est = svcEstimateCost(o);
+      const short = est && S.money < est.cost;
       const card = document.createElement('div'); card.className = 'card';
       card.innerHTML =
         '<div class="rowflex" style="justify-content:space-between"><b style="color:#fff;font-size:16px">' + o.name + '</b><span class="tag">' + SVC_TIERS[o.tier].label + '</span></div>' +
@@ -2363,6 +2495,12 @@
         kv('Nhiệt tối đa khi stress', '≤ ' + o.maxTemp + ' °C') +
         kv('Hạn giao', o.days + ' ngày kể từ khi nhận') +
         kv('Uy tín nếu giao tốt', '+' + o.repGain) +
+        (est
+          ? kv('Ứng trước ước tính', 'khoảng <b style="color:var(--amber)">' + fmt(est.cost) + '</b>') +
+            kv('Tiền bạn đang có', fmt(S.money)) +
+            '<div class="muted" style="font-size:12.5px;margin:2px 0 6px">Chi phí mua bộ linh kiện rẻ nhất còn thiếu trong Kho để đạt yêu cầu trên (đồ thừa sẵn trong Kho không tính tiền; đồ đang lắp trong máy của bạn không được tính là có sẵn). Khách không ứng trước — bạn tự bỏ tiền túi, giao máy đạt yêu cầu mới nhận lại ngân sách + thù lao.</div>' +
+            (short ? '<div class="alert r" style="margin:0 0 8px">⚠ Bạn cần ứng khoảng ' + fmt(est.cost) + ' nhưng chỉ có ' + fmt(S.money) + ' — cần kiếm thêm ' + fmt(est.cost - S.money) + ' trước khi nhận việc</div>' : '')
+          : '<div class="muted" style="font-size:12.5px;margin:4px 0 6px">Ứng trước ước tính: chưa tính được — bằng đồ trong Kho và Cửa Hàng ở cấp hiện tại chưa thấy bộ nào đạt yêu cầu, có thể cần lên cấp để mở khóa linh kiện mạnh hơn.</div>') +
         '<div class="muted" style="font-size:12.5px;margin:6px 0">Khách sẽ bỏ đi sau ' + o.waitLeft + ' ngày nữa nếu bạn không nhận việc.</div>' +
         '<div class="rowflex"><button class="small primary acc">🤝 Nhận việc</button><button class="small rej">Từ chối</button></div>';
       card.querySelector('.acc').addEventListener('click', () => svcAccept(o.id));
@@ -2381,6 +2519,8 @@
         '<span class="tag" style="' + (daysLeft <= 0 ? 'color:var(--red);border-color:var(--red)' : daysLeft <= 2 ? 'color:var(--yellow);border-color:var(--yellow)' : '') + '">⏰ ' + (daysLeft > 0 ? 'Còn ' + daysLeft + ' ngày (hạn: hết ngày ' + job.deadlineDay + ')' : 'HẠN CHÓT HÔM NAY (ngày ' + job.deadlineDay + ')') + '</span></div>' +
         kv('Nhận việc ngày', job.acceptedDay + ' · Hạn giao: hết ngày ' + job.deadlineDay) +
         kv('Khách trả khi giao đạt yêu cầu', fmt(job.budget) + ' ngân sách + ' + fmt(job.fee) + ' thù lao · Uy tín +' + job.repGain) +
+        kv('Ứng trước ước tính lúc nhận', job.estCost != null ? 'khoảng ' + fmt(job.estCost) : (svcEstimateCost(job) ? 'khoảng ' + fmt(svcEstimateCost(job).cost) + ' (ước tính lại theo Kho hiện tại)' : '—')) +
+        kv('Đã chi thực tế cho bộ máy này', '<b style="color:var(--amber)">' + fmt(svcJobSpent(job)) + '</b>') +
         '<h3 style="margin-top:10px">Lắp linh kiện cho khách (lấy từ Kho của bạn)</h3>';
       if (loaded) html += '<div class="alert y">🔧 Máy này đang trên bàn test — trả máy xuống mới thay linh kiện được.</div>';
       html += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">';
