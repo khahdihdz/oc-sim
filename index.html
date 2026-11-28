@@ -957,8 +957,11 @@
       if (load > 0.5 && cpuPower > plActive){ plFactor = Math.pow(plActive / cpuPower, 0.85); plLimited = true; cpuPower = plActive + (cpuPower - plActive) * 0.04; }
       let freqEff = freqSet * plFactor;
 
-      /* Nhiệt độ mục tiêu theo tản nhiệt */
-      const cpuTempTarget = cooler.base + cpuPower * cooler.coeff * (cooler.id === 'ln2' ? 1 : 1);
+      /* Nhiệt độ mục tiêu theo tản nhiệt. Máy khách của việc "thay keo
+         tản nhiệt" đang trên bàn test mà CHƯA được tra keo mới: lớp keo
+         cũ đã khô làm nhiệt đội thêm pastePenalty °C — phải làm dịch vụ
+         tra keo (nút trong thẻ việc ở tab Dịch Vụ) mới hết phạt này. */
+      const cpuTempTarget = cooler.base + cpuPower * cooler.coeff * (cooler.id === 'ln2' ? 1 : 1) + svcPastePenalty();
       const tempForThrottle = load > 0.5 ? Math.max(sim.cpuTemp, Math.min(cpuTempTarget, sim.cpuTemp + 8)) : sim.cpuTemp;
       let throttle = 1, throttleNote = '';
       const tNow = load > 0.5 ? cpuTempTarget : sim.cpuTemp;
@@ -2188,6 +2191,9 @@
         maxTemp: kind === 'oc' ? svcRndi(78, 86) : svcRndi(66, 72),
         days: svcRndi(2, 3), waitLeft: svcRndi(2, 4),
         rig: Object.assign({}, rig),
+        /* Việc thay keo: keo cũ đã khô, phạt nhiệt 14–18°C cho tới khi
+           người chơi bấm làm dịch vụ tra keo thật trên thẻ việc */
+        pasteDone: false, pastePenalty: kind === 'repaste' ? svcRndi(14, 18) : 0,
       };
     }
     /* Bồi thường quá hạn: việc build tính 20% ngân sách, việc khởi
@@ -2236,6 +2242,10 @@
       svcRefillWaiting(); /* khách chờ cũ được thay dần theo luật sinh khách mới (gồm đảm bảo khách Khởi nghiệp cho người mới) */
       sv.active.forEach(j => {
         if (!j.kind) j.kind = 'build'; /* việc từ bản lưu cũ đều là việc build máy */
+        /* Việc thay keo từ bản lưu cũ (chưa có trạng thái tra keo):
+           mặc định CHƯA tra keo + phạt nhiệt chuẩn 15°C, để khách yêu
+           cầu tra keo thì xưởng phải làm dịch vụ thật mới giao được */
+        if (j.kind === 'repaste'){ if (typeof j.pasteDone !== 'boolean') j.pasteDone = false; if (!j.pastePenalty) j.pastePenalty = 15; }
         if (!j.build) j.build = { cpu:null, gpu:null, ram:null, board:null, psu:null, cooler:null };
         Object.keys(j.build).forEach(cat => { if (j.build[cat] && !instOf(j.build[cat])) j.build[cat] = null; });
       });
@@ -2243,6 +2253,15 @@
     }
     function svcJob(id){ return S.service.active.find(j => j.id === id); }
     function svcLoadedJob(){ return S.service && S.service.loadedJobId ? svcJob(S.service.loadedJobId) : null; }
+    /* Phạt nhiệt do keo tản nhiệt cũ đã khô: chỉ áp cho máy khách của
+       việc thay keo (tier 0, kind 'repaste') đang trên bàn test và chưa
+       được tra keo mới; compute() cộng thẳng vào nhiệt CPU mục tiêu,
+       nên HUD / Benchmark / Stress Test đều thấy máy nóng bất thường
+       đúng như lời khách phàn nàn lúc mang máy tới. */
+    function svcPastePenalty(){
+      const j = svcLoadedJob();
+      return (j && j.tier === 0 && j.kind === 'repaste' && !j.pasteDone) ? (j.pastePenalty || 15) : 0;
+    }
     /* uid đang bị giữ cho dịch vụ thì không bán / không trao đổi / không lắp sang nơi khác được */
     function svcPartBusy(uid){
       if (!S.service) return null;
@@ -2493,7 +2512,10 @@
       sv.loadedJobId = job.id;
       sim.cpuTemp = 34; sim.gpuTemp = 33;
       markApplied(); refreshAll(); saveGame(true);
-      toast('🔧 Máy của khách ' + job.name + ' đã lên bàn test: chỉnh ở tab Ép Xung, chạy Benchmark + Stress Test — kết quả tự ghi vào việc này. Máy của bạn được cất nguyên vẹn và tự trở lại khi trả máy xuống.', 'gold');
+      if (job.kind === 'repaste' && !job.pasteDone)
+        toast('🔧 Máy của khách ' + job.name + ' đã lên bàn test: keo tản nhiệt cũ ĐÃ KHÔ, nhiệt CPU đang bị đội thêm +' + (job.pastePenalty || 15) + '°C đúng như khách phàn nàn. Quay lại tab Dịch Vụ bấm nút "🧴 Tra keo tản nhiệt & vệ sinh" trong thẻ việc để làm dịch vụ khách yêu cầu, rồi căn lại xung/volt và Stress Test kiểm chứng.', 'gold');
+      else
+        toast('🔧 Máy của khách ' + job.name + ' đã lên bàn test: chỉnh ở tab Ép Xung, chạy Benchmark + Stress Test — kết quả tự ghi vào việc này. Máy của bạn được cất nguyên vẹn và tự trở lại khi trả máy xuống.', 'gold');
       sndOk(); gotoTab('oc');
     }
     function svcUnloadRig(silent){
@@ -2507,11 +2529,36 @@
       markApplied(); refreshAll(); saveGame(true);
       if (!silent) toast('Đã trả máy khách xuống — máy của bạn đã trở lại bàn test.');
     }
+    /* ============================================================
+       TRA KEO TẢN NHIỆT & VỆ SINH — thao tác dịch vụ THẬT cho việc
+       kind 'repaste'. Trước đây việc này chỉ có cái tên: khách yêu
+       cầu thay keo nhưng trong game không có thao tác tra keo nào,
+       người chơi chỉ hạ volt/xung là giao được máy. Nay: máy phải
+       đang trên bàn test, bấm nút tra keo trong thẻ việc -> tháo tản,
+       lau keo cũ đã khô, tra keo mới, thổi bụi -> hết phạt nhiệt
+       pastePenalty °C trong compute(). Kết quả Stress Test đo trước
+       khi tra keo không còn giá trị nên bị xóa, phải chạy lại để
+       kiểm chứng. Chưa tra keo thì svcMissing() chặn giao máy.
+       Vật tư keo + vệ sinh là đồ nghề có sẵn của xưởng: không tính
+       tiền, giữ đúng cam kết việc Khởi nghiệp ứng trước 0 ₫.
+       ============================================================ */
+    function svcDoPaste(job){
+      if (!job || job.kind !== 'repaste') return;
+      if (job.pasteDone){ toast('Máy của ' + job.name + ' đã được tra keo mới & vệ sinh rồi.', 'err'); sndErr(); return; }
+      if (S.service.loadedJobId !== job.id){ toast('Đưa máy của ' + job.name + ' lên bàn test trước — tra keo phải làm trên chính máy khách đang ở xưởng.', 'err'); sndErr(); return; }
+      if (sim.stress || sim.bench){ toast('Đang chạy test — chờ test xong rồi mới tháo tản tra keo.', 'err'); sndErr(); return; }
+      job.pasteDone = true;
+      job.stressOk = false; job.stressPeak = null; /* số đo cũ là lúc keo còn khô — phải stress lại sau khi tra keo */
+      toast('🧴 Đã tháo tản, lau sạch keo cũ đã khô, tra keo tản nhiệt mới và thổi bụi vệ sinh máy của ' + job.name + ' — nhiệt CPU khi tải nặng giảm khoảng ' + (job.pastePenalty || 15) + '°C. Căn lại xung/volt nếu cần rồi chạy lại Stress Test 10 giây để kiểm chứng trước khi giao máy.', 'gold');
+      sndOk(); saveGame(true); refreshAll();
+    }
     function svcMissing(job){
       const miss = [];
       if (job.tier === 0){
         /* Việc khởi nghiệp: máy khách có sẵn — ép xung chỉ cần xung +
-           stress mát; thay keo chỉ cần stress đạt trần nhiệt */
+           stress mát; thay keo BẮT BUỘC đã làm dịch vụ tra keo thật
+           (không chỉ hạ volt/xung) + stress đạt trần nhiệt */
+        if (job.kind === 'repaste' && !job.pasteDone) miss.push('chưa tra keo tản nhiệt mới & vệ sinh máy — đưa máy khách lên bàn test rồi bấm nút "🧴 Tra keo tản nhiệt & vệ sinh" trong thẻ việc này');
         if (job.kind === 'oc' && job.benchClock < job.reqClock) miss.push('xung CPU khi benchmark ' + job.benchClock.toLocaleString('vi-VN') + ' MHz < mục tiêu ' + job.reqClock.toLocaleString('vi-VN') + ' MHz');
         if (!job.stressOk) miss.push('chưa qua Stress Test 10 giây trên máy khách');
         else if (job.stressPeak !== null && job.stressPeak > job.maxTemp) miss.push('nhiệt đỉnh khi stress ' + Math.round(job.stressPeak) + '°C > mức tối đa khách cho phép ' + job.maxTemp + '°C');
@@ -2612,12 +2659,13 @@
           '<div style="margin:4px 0"><span class="tag eq">' + o.need + '</span> <span class="muted" style="font-size:13px">' + o.needNote + '</span></div>' +
           kv('Loại việc', o.kind === 'oc' ? 'Ép xung & tối ưu máy khách mang tới' : 'Thay keo tản nhiệt & vệ sinh máy') +
           kv('Máy của khách', '<span style="font-size:13px">' + svcRigSummary(o.rig) + '</span>') +
+          (o.kind === 'repaste' ? kv('Tình trạng keo tản nhiệt', '<b style="color:var(--red)">Keo cũ đã khô — nhiệt CPU bị đội thêm khoảng +' + (o.pastePenalty || 15) + '°C</b>') : '') +
           kv('Thù lao của bạn', '<b style="color:var(--amber)">' + fmt(o.fee) + '</b>') +
           (o.kind === 'oc' ? kv('Xung CPU mục tiêu', '≥ ' + o.reqClock.toLocaleString('vi-VN') + ' MHz (đo khi Benchmark)') : '') +
           kv('Nhiệt tối đa khi stress', '≤ ' + o.maxTemp + ' °C') +
           kv('Hạn giao', o.days + ' ngày kể từ khi nhận') +
           kv('Uy tín nếu giao tốt', '+' + o.repGain) +
-          '<div class="alert g" style="margin:6px 0 8px">✅ Không cần ứng trước: khách mang máy sẵn tới xưởng, bạn không phải mua linh kiện nào. Đưa máy khách lên bàn test, ép xung / test bằng đúng các tab hiện tại rồi giao máy nhận thù lao.</div>' +
+          '<div class="alert g" style="margin:6px 0 8px">✅ Không cần ứng trước: khách mang máy sẵn tới xưởng, bạn không phải mua linh kiện nào. ' + (o.kind === 'repaste' ? 'Đưa máy khách lên bàn test rồi bấm nút <b>🧴 Tra keo tản nhiệt &amp; vệ sinh</b> ngay trong thẻ việc — tháo tản, lau keo khô, tra keo mới, thổi bụi; làm xong nhiệt giảm khoảng ' + (o.pastePenalty || 15) + '°C. Sau đó căn lại xung/volt và Stress Test đạt trần nhiệt rồi giao máy nhận thù lao.' : 'Đưa máy khách lên bàn test, ép xung / test bằng đúng các tab hiện tại rồi giao máy nhận thù lao.') + '</div>' +
           '<div class="muted" style="font-size:12.5px;margin:6px 0">Khách sẽ bỏ đi sau ' + o.waitLeft + ' ngày nữa nếu bạn không nhận việc.</div>' +
           '<div class="rowflex"><button class="small primary acc">🤝 Nhận việc</button><button class="small rej">Từ chối</button></div>';
         card.querySelector('.acc').addEventListener('click', () => svcAccept(o.id));
@@ -2671,16 +2719,21 @@
           kv('Khách trả khi giao đạt yêu cầu', fmt(job.fee) + ' thù lao · Uy tín +' + job.repGain) +
           kv('Tiền bạn đã chi cho việc này', '<b style="color:var(--green)">0 ₫</b> — máy và linh kiện là của khách, bạn không ứng trước đồng nào');
         if (loaded) html += '<div class="alert y">🔧 Máy này đang trên bàn test — sang tab Ép Xung để chỉnh, rồi chạy Benchmark / Stress Test.</div>';
+        if (job.kind === 'repaste' && !job.pasteDone) html += '<div class="alert r">🧴 <b>Khách yêu cầu tra keo tản nhiệt nhưng máy CHƯA được tra keo:</b> keo cũ đã khô, nhiệt CPU đang bị đội thêm <b>+' + (job.pastePenalty || 15) + '°C</b>. Bấm nút <b>🧴 Tra keo tản nhiệt &amp; vệ sinh</b> bên dưới để làm dịch vụ' + (loaded ? '' : ' (cần đưa máy lên bàn test trước)') + ' — chưa tra keo thì không giao máy được.</div>';
+        if (job.kind === 'repaste' && job.pasteDone) html += '<div class="alert g">🧴 Đã tra keo tản nhiệt mới &amp; vệ sinh máy — lớp keo khô đã được thay, nhiệt phạt +' + (job.pastePenalty || 15) + '°C đã hết. Chỉ còn căn lại xung/volt và Stress Test đạt trần nhiệt là giao được.</div>';
         html += '<h3 style="margin-top:10px">Tiến độ yêu cầu của khách</h3><ul class="svcchk">' +
           (job.kind === 'oc' ? svcChk(job.benchClock >= job.reqClock, 'Xung CPU khi benchmark: ' + job.benchClock.toLocaleString('vi-VN') + ' / ' + job.reqClock.toLocaleString('vi-VN') + ' MHz') : '') +
+          (job.kind === 'repaste' ? svcChk(!!job.pasteDone, 'Tra keo tản nhiệt mới & vệ sinh máy: ' + (job.pasteDone ? 'ĐÃ LÀM — đã tháo tản, lau keo cũ, tra keo mới và thổi bụi' : 'CHƯA LÀM — keo cũ đã khô, nhiệt CPU đang bị đội thêm +' + (job.pastePenalty || 15) + '°C')) : '') +
           svcChk(job.stressOk && job.stressPeak !== null && job.stressPeak <= job.maxTemp, 'Stress Test 10 giây: ' + (job.stressOk ? 'đã QUA — nhiệt đỉnh ' + Math.round(job.stressPeak) + '°C / tối đa cho phép ' + job.maxTemp + '°C' : 'chưa qua trên máy khách')) +
           '</ul>' +
           '<div class="rowflex">' +
           (loaded ? '<button class="small unload">⬇ Trả máy xuống (về máy của bạn)</button>' : '<button class="small primary load"' + (otherLoaded ? ' disabled title="Đang có máy khách khác trên bàn test"' : '') + '>🔧 Đưa máy khách lên bàn test</button>') +
+          (job.kind === 'repaste' ? (job.pasteDone ? '<button class="small paste" disabled>🧴 Đã tra keo &amp; vệ sinh ✔</button>' : '<button class="small primary paste"' + (loaded ? '' : ' disabled title="Đưa máy khách lên bàn test trước rồi mới tra keo được"') + '>🧴 Tra keo tản nhiệt &amp; vệ sinh</button>') : '') +
           '<button class="small primary deliver">🎁 Giao máy &amp; nhận ' + fmt(job.fee) + '</button>' +
           '<button class="small danger cancel">Hủy việc</button></div>' +
-          '<div class="muted" style="font-size:12.5px;margin-top:6px">Quy trình: đưa máy khách lên bàn test → tab Ép Xung chỉnh xung/volt → chạy ' + (job.kind === 'oc' ? 'Benchmark (đạt xung mục tiêu) và ' : '') + 'Stress Test 10 giây (đạt trần nhiệt) — kết quả tự ghi vào việc này, không tính vào kỷ lục của bạn → quay lại đây bấm Giao máy. Linh kiện là của khách nên không thay được và sẽ theo khách về khi giao. Quá hạn giao: bồi thường ' + fmt(svcComp(job)) + ' (20% thù lao) và uy tín −' + job.repLoss + '.</div>';
+          '<div class="muted" style="font-size:12.5px;margin-top:6px">Quy trình: ' + (job.kind === 'repaste' ? 'đưa máy khách lên bàn test → bấm <b>🧴 Tra keo tản nhiệt &amp; vệ sinh</b> ngay tại thẻ này (tháo tản, lau keo cũ đã khô, tra keo mới, thổi bụi — nhiệt giảm khoảng ' + (job.pastePenalty || 15) + '°C) → tab Ép Xung căn lại xung/volt cho mát → chạy Stress Test 10 giây đạt trần nhiệt (kết quả tự ghi vào việc này, không tính vào kỷ lục của bạn; số đo stress TRƯỚC khi tra keo bị xóa vì đo lúc keo khô) → quay lại đây bấm Giao máy.' : 'đưa máy khách lên bàn test → tab Ép Xung chỉnh xung/volt → chạy ' + (job.kind === 'oc' ? 'Benchmark (đạt xung mục tiêu) và ' : '') + 'Stress Test 10 giây (đạt trần nhiệt) — kết quả tự ghi vào việc này, không tính vào kỷ lục của bạn → quay lại đây bấm Giao máy.') + ' Linh kiện là của khách nên không thay được và sẽ theo khách về khi giao. Quá hạn giao: bồi thường ' + fmt(svcComp(job)) + ' (20% thù lao) và uy tín −' + job.repLoss + '.</div>';
         card.innerHTML = html;
+        const pb2 = card.querySelector('.paste'); if (pb2) pb2.addEventListener('click', () => svcDoPaste(job));
         const lb2 = card.querySelector('.load'); if (lb2) lb2.addEventListener('click', () => svcLoadRig(job));
         const ub2 = card.querySelector('.unload'); if (ub2) ub2.addEventListener('click', () => svcUnloadRig(false));
         card.querySelector('.deliver').addEventListener('click', () => svcDeliver(job));
